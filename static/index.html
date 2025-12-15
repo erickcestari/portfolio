@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>my site</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main>
+      <nav>
+          <a href="#about" data-text="about"></a>
+          <a href="#projects" data-text="projects"></a>
+          <a href="#contact" data-text="contact"></a>
+      </nav>
+        <h1>erick's site</h1>
+        <p>minimal. no bloat.</p>
+    </main>
+
+    <script type="module">
+        import init, { do_something } from './pkg/portfolio.js';
+        await init();
+    </script>
+</body>
+</html>
