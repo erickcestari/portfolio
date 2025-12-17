@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 pool = { path = "../pool" }
+rustls = "0.23"
+rustls-pemfile = "2"

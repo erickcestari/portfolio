@@ -1,34 +1,48 @@
 use std::{
-    fs,
-    io::{prelude::*, BufReader},
+    fs::{self, File},
+    io::{self, prelude::*, BufReader},
     net::{TcpListener, TcpStream},
     path::Path,
+    sync::Arc,
     thread,
 };
 
 use pool::ThreadPool;
+use rustls::ServerConfig;
+use rustls_pemfile::{certs, private_key};
+
+struct Listener {
+    tcp: TcpListener,
+    tls_config: Option<Arc<ServerConfig>>,
+}
 
 pub struct Featherserve {
-    listener: TcpListener,
-    pool: ThreadPool,
+    listeners: Vec<Listener>,
+    pool: Arc<ThreadPool>,
     static_dir: String,
 }
 
+impl Default for Featherserve {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Featherserve {
-    pub fn new(listener: TcpListener) -> Self {
+    pub fn new() -> Self {
         let num_threads = thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(4);
 
         Self {
-            listener,
-            pool: ThreadPool::new(num_threads),
+            listeners: Vec::new(),
+            pool: Arc::new(ThreadPool::new(num_threads)),
             static_dir: "pages".to_string(),
         }
     }
 
     pub fn with_threads(mut self, num_threads: usize) -> Self {
-        self.pool = ThreadPool::new(num_threads);
+        self.pool = Arc::new(ThreadPool::new(num_threads));
         self
     }
 
@@ -37,31 +51,117 @@ impl Featherserve {
         self
     }
 
-    pub fn run(self) {
-        println!(
-            "Featherserve listening on {}",
-            self.listener.local_addr().unwrap()
-        );
+    pub fn bind_http(mut self, addr: &str) -> io::Result<Self> {
+        let listener = TcpListener::bind(addr)?;
+        self.listeners.push(Listener {
+            tcp: listener,
+            tls_config: None,
+        });
+        Ok(self)
+    }
 
-        for stream in self.listener.incoming() {
-            match stream {
-                Ok(stream) => {
-                    let static_dir = self.static_dir.clone();
-                    self.pool.execute(move || {
-                        Self::handle_connection(stream, &static_dir);
-                    });
+    pub fn bind_https(mut self, addr: &str, cert_path: &str, key_path: &str) -> io::Result<Self> {
+        let listener = TcpListener::bind(addr)?;
+        let config = Self::load_tls_config(cert_path, key_path)?;
+        self.listeners.push(Listener {
+            tcp: listener,
+            tls_config: Some(Arc::new(config)),
+        });
+        Ok(self)
+    }
+
+    fn load_tls_config(cert_path: &str, key_path: &str) -> io::Result<ServerConfig> {
+        let cert_file = File::open(cert_path)?;
+        let key_file = File::open(key_path)?;
+
+        let certs: Vec<_> = certs(&mut BufReader::new(cert_file)).collect::<Result<Vec<_>, _>>()?;
+
+        let key = private_key(&mut BufReader::new(key_file))?
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "No private key found"))?;
+
+        ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(certs, key)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
+
+    pub fn run(self) {
+        if self.listeners.is_empty() {
+            eprintln!("No listeners configured. Use bind_http() or bind_https() to add listeners.");
+            return;
+        }
+
+        for listener in &self.listeners {
+            let protocol = if listener.tls_config.is_some() {
+                "https"
+            } else {
+                "http"
+            };
+            println!(
+                "Featherserve listening on {}://{}",
+                protocol,
+                listener.tcp.local_addr().unwrap()
+            );
+        }
+
+        let static_dir = Arc::new(self.static_dir);
+        let mut handles = Vec::new();
+
+        for listener in self.listeners {
+            let pool = Arc::clone(&self.pool);
+            let static_dir = Arc::clone(&static_dir);
+
+            let handle = thread::spawn(move || {
+                for stream in listener.tcp.incoming() {
+                    match stream {
+                        Ok(stream) => {
+                            let static_dir = Arc::clone(&static_dir);
+                            let tls_config = listener.tls_config.clone();
+                            pool.execute(move || {
+                                if let Some(config) = tls_config {
+                                    Self::handle_tls_connection(stream, &static_dir, config);
+                                } else {
+                                    Self::handle_connection(stream, &static_dir);
+                                }
+                            });
+                        }
+                        Err(e) => eprintln!("Connection failed: {}", e),
+                    }
                 }
-                Err(e) => eprintln!("Connection failed: {}", e),
-            }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            let _ = handle.join();
         }
     }
 
-    fn handle_connection(mut stream: TcpStream, static_dir: &str) {
-        let buf_reader = BufReader::new(&stream);
-        let request_line = match buf_reader.lines().next() {
-            Some(Ok(line)) => line,
-            _ => return,
+    fn handle_tls_connection(stream: TcpStream, static_dir: &str, config: Arc<ServerConfig>) {
+        let mut conn = match rustls::ServerConnection::new(config) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("TLS connection error: {}", e);
+                return;
+            }
         };
+
+        let mut stream = stream;
+        let mut tls_stream = rustls::Stream::new(&mut conn, &mut stream);
+        Self::handle_stream(&mut tls_stream, static_dir);
+    }
+
+    fn handle_connection(stream: TcpStream, static_dir: &str) {
+        let mut stream = stream;
+        Self::handle_stream(&mut stream, static_dir);
+    }
+
+    fn handle_stream<S: Read + Write>(stream: &mut S, static_dir: &str) {
+        let mut buf_reader = BufReader::new(Read::by_ref(stream));
+        let mut request_line = String::new();
+        if buf_reader.read_line(&mut request_line).is_err() {
+            return;
+        }
 
         let (_method, path, _protocol) = Self::parse_request_line(&request_line);
 
