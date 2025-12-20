@@ -25,13 +25,30 @@ impl<'a> StaticFileHandler<'a> {
 
         let contents = fs::read(&file_path).unwrap_or_else(|_| b"Not Found".to_vec());
         let content_type = Self::content_type(&file_path);
+        let cache_control = Self::cache_control(&file_path);
 
         let (body, gzip) = self.maybe_compress(&contents, content_type, request.accepts_gzip);
 
-        if found {
+        let response = if found {
             Response::ok(body, content_type, gzip)
         } else {
             Response::not_found(body, content_type, gzip)
+        };
+
+        if let Some(cc) = cache_control {
+            response.with_cache_control(cc)
+        } else {
+            response
+        }
+    }
+
+    fn cache_control(filename: &str) -> Option<&'static str> {
+        match Path::new(filename).extension().and_then(|ext| ext.to_str()) {
+            Some(
+                "css" | "js" | "png" | "jpg" | "jpeg" | "webp" | "ico" | "svg" | "woff" | "woff2",
+            ) => Some("public, max-age=31536000, immutable"),
+            Some("html") => Some("no-cache"),
+            _ => None,
         }
     }
 
