@@ -195,7 +195,14 @@ impl Featherserve {
         if path == "/" {
             format!("{}/index.html", static_dir)
         } else if !path.contains('.') {
-            format!("{}{}.html", static_dir, path)
+            let index_path = format!("{}{}/index.html", static_dir, path);
+            let html_path = format!("{}{}.html", static_dir, path);
+
+            if Path::new(&index_path).exists() {
+                index_path
+            } else {
+                html_path
+            }
         } else {
             format!("{}{}", static_dir, path)
         }
