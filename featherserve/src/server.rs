@@ -1,4 +1,5 @@
 use std::{
+    env,
     io::{self, Read, Write},
     net::{TcpListener, TcpStream},
     sync::Arc,
@@ -9,6 +10,52 @@ use pool::ThreadPool;
 use rustls::ServerConfig;
 
 use crate::{handler::StaticFileHandler, tls, Request};
+
+pub struct Config {
+    static_dir: String,
+    http_bind: String,
+    threads: Option<usize>,
+    https: Option<HttpsConfig>,
+}
+
+struct HttpsConfig {
+    bind: String,
+    cert_path: String,
+    key_path: String,
+}
+
+impl Config {
+    pub fn from_env() -> Self {
+        dotenvy::dotenv().ok();
+        Self {
+            static_dir: env_var("STATIC_DIR"),
+            http_bind: env_var("HTTP_BIND"),
+            threads: env::var("THREADS").ok().and_then(|t| t.parse().ok()),
+            https: Self::parse_https_config(),
+        }
+    }
+
+    fn parse_https_config() -> Option<HttpsConfig> {
+        let enable_https = env::var("ENABLE_HTTPS")
+            .ok()
+            .and_then(|v| v.parse::<bool>().ok())
+            .unwrap_or(false);
+
+        if enable_https {
+            Some(HttpsConfig {
+                bind: env_var("HTTPS_BIND"),
+                cert_path: env_var("CERT_PATH"),
+                key_path: env_var("KEY_PATH"),
+            })
+        } else {
+            None
+        }
+    }
+}
+
+fn env_var(key: &str) -> String {
+    env::var(key).unwrap_or_else(|_| panic!("{} environment variable not set", key))
+}
 
 struct Listener {
     tcp: TcpListener,
@@ -34,6 +81,27 @@ pub struct Featherserve {
 impl Default for Featherserve {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl From<Config> for Featherserve {
+    fn from(config: Config) -> Self {
+        let mut server = Featherserve::new()
+            .with_static_dir(&config.static_dir)
+            .bind_http(&config.http_bind)
+            .expect("Failed to bind HTTP");
+
+        if let Some(threads) = config.threads {
+            server = server.with_threads(threads);
+        }
+
+        if let Some(https) = config.https {
+            server = server
+                .bind_https(&https.bind, &https.cert_path, &https.key_path)
+                .expect("Failed to bind HTTPS");
+        }
+
+        server
     }
 }
 

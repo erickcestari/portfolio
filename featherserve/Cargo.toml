@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+dotenvy = "0.15.7"
 flate2 = "1.1.5"
 pool = { path = "../pool" }
 rustls = "0.23"

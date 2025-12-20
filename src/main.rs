@@ -1,12 +1,8 @@
-use featherserve::Featherserve;
+use featherserve::{Config, Featherserve};
 
 fn main() {
-    Featherserve::new()
-        .with_static_dir("static")
-        .with_threads(8)
-        .bind_http("0.0.0.0:8080")
-        .unwrap()
-        .bind_https("0.0.0.0:8443", "./example/cert.pem", "./example/key.pem")
-        .unwrap()
-        .run();
+    let config = Config::from_env();
+    let server = Featherserve::from(config);
+
+    server.run();
 }

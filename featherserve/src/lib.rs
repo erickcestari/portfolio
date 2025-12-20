@@ -7,3 +7,4 @@ mod tls;
 pub use request::Request;
 pub use response::Response;
 pub use server::Featherserve;
+pub use server::Config;
