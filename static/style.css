@@ -116,3 +116,13 @@ article p {
 article p:last-of-type {
     margin-bottom: 0;
 }
+
+@media (max-width: 480px) {
+    body {
+        padding: 1rem;
+    }
+    
+    nav {
+        gap: 0.5rem;
+    }
+}
