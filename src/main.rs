@@ -2,7 +2,7 @@ use featherserve::Featherserve;
 
 fn main() {
     Featherserve::new()
-        .with_static_dir("pages")
+        .with_static_dir("static")
         .with_threads(8)
         .bind_http("0.0.0.0:8080")
         .unwrap()

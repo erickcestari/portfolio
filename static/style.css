@@ -1,0 +1,118 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg: #0a0a0a;
+    --fg: #c0c0c0;
+    --accent: #ffffff;
+}
+
+body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: monospace;
+    font-size: 16px;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 700px;
+    margin: 0 auto;
+    min-height: 100vh;
+    position: relative;
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: -1;
+    background-image:
+        repeating-linear-gradient(
+            0deg,
+            transparent 0,
+            transparent 2px,
+            rgba(255,255,255, 0.05) 2px,
+            rgba(255,255,255, 0.05) 4px
+        );
+}
+
+h1 {
+    color: var(--accent);
+    font-weight: normal;
+    margin-bottom: 0.5rem;
+}
+
+h1::after {
+    content: "_";
+    animation: blink 1s step-end infinite;
+}
+
+article p::before {
+    content: "> ";
+    color: var(--accent);
+}
+
+@keyframes blink {
+    50% { opacity: 0; }
+}
+
+a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+nav a::before {
+    content: "~";
+}
+
+nav a::after {
+    content: attr(data-text);
+}
+
+nav a:hover::before {
+    content: "#";
+}
+
+nav {
+    margin-top: 2rem;
+    display: flex;
+    gap: 1rem;
+}
+
+nav a:last-child {
+    margin-left: auto;
+}
+
+header {
+    border-bottom: 1px solid var(--fg);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+main {
+    padding-bottom: 2rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--fg);
+}
+
+footer {
+    padding-top: 0.5rem;
+}
+
+article p {
+    margin-bottom: 1rem;
+}
+
+article p:last-of-type {
+    margin-bottom: 0;
+}

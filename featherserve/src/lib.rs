@@ -217,10 +217,12 @@ impl Featherserve {
             Some("json") => "application/json",
             Some("svg") => "image/svg+xml",
             Some("png") => "image/png",
-            Some("jpeg" | "jpg") => "image/jpeg",
+            Some("jpg") | Some("jpeg") => "image/jpeg",
+            Some("webp") => "image/webp",
             Some("ico") => "image/x-icon",
             Some("woff") => "font/woff",
             Some("woff2") => "font/woff2",
+            Some("asc") => "text/plain; charset=utf-8",
             _ => "application/octet-stream",
         }
     }
