@@ -46,8 +46,9 @@ impl<'a> StaticFileHandler<'a> {
         match Path::new(filename).extension().and_then(|ext| ext.to_str()) {
             Some(
                 "css" | "js" | "png" | "jpg" | "jpeg" | "webp" | "ico" | "svg" | "woff" | "woff2",
-            ) => Some("public, max-age=31536000, immutable"),
-            Some("html") => Some("no-cache"),
+            ) => Some("public, max-age=300, must-revalidate"),
+
+            Some("html") => Some("no-cache, must-revalidate"),
             _ => None,
         }
     }
