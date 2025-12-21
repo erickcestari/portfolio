@@ -77,6 +77,11 @@ article p::before {
 a {
     color: var(--accent);
     text-decoration: none;
+    text-shadow: 0 0 2px rgba(255,255,255,0.4);
+}
+
+a:hover {
+    text-shadow: 0 0 6px rgba(255,255,255,0.8);
 }
 
 a:hover {
@@ -85,10 +90,6 @@ a:hover {
 
 nav a::before {
     content: "~";
-}
-
-nav a::after {
-    content: attr(data-text);
 }
 
 nav a:hover::before {
