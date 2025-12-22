@@ -1,8 +1,19 @@
-use std::{fs, io::Write, path::Path};
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use flate2::{write::GzEncoder, Compression};
 
 use crate::{Request, Response};
+
+enum ResolveResult {
+    Found(PathBuf),
+    NotFound,
+    Honeypot,
+    Forbidden,
+}
 
 pub struct StaticFileHandler<'a> {
     static_dir: &'a str,
@@ -16,16 +27,20 @@ impl<'a> StaticFileHandler<'a> {
     pub fn handle(&self, request: &Request) -> Response {
         println!("Request: {}", request.path);
 
-        let file_path = self.resolve_path(request.path);
-        let (found, file_path) = if Path::new(&file_path).exists() {
-            (true, file_path)
-        } else {
-            (false, format!("{}/404.html", self.static_dir))
+        let (found, file_path) = match self.resolve_path(request.path) {
+            ResolveResult::Found(path) => (true, path),
+            ResolveResult::NotFound => (
+                false,
+                PathBuf::from(format!("{}/404.html", self.static_dir)),
+            ),
+            ResolveResult::Honeypot => return Response::forbidden(request.path),
+            ResolveResult::Forbidden => return Response::forbidden(request.path),
         };
 
+        let file_path_str = file_path.to_string_lossy();
         let contents = fs::read(&file_path).unwrap_or_else(|_| b"Not Found".to_vec());
-        let content_type = Self::content_type(&file_path);
-        let cache_control = Self::cache_control(&file_path);
+        let content_type = Self::content_type(&file_path_str);
+        let cache_control = Self::cache_control(&file_path_str);
 
         let (body, gzip) = self.maybe_compress(&contents, content_type, request.accepts_gzip);
 
@@ -67,21 +82,63 @@ impl<'a> StaticFileHandler<'a> {
         (contents.to_vec(), false)
     }
 
-    fn resolve_path(&self, path: &str) -> String {
-        if path == "/" {
-            return format!("{}/index.html", self.static_dir);
-        }
+    fn resolve_path(&self, path: &str) -> ResolveResult {
+        let base = match Path::new(self.static_dir).canonicalize() {
+            Ok(b) => b,
+            Err(_) => return ResolveResult::NotFound,
+        };
 
-        if path.contains('.') {
-            return format!("{}{}", self.static_dir, path);
-        }
-
-        let index_path = format!("{}{}/index.html", self.static_dir, path);
-        if Path::new(&index_path).exists() {
-            index_path
+        let requested = if path == "/" {
+            base.join("index.html")
+        } else if path.contains('.') {
+            base.join(path.trim_start_matches('/'))
         } else {
-            format!("{}{}.html", self.static_dir, path)
+            let index_path = base.join(path.trim_start_matches('/')).join("index.html");
+            if index_path.exists() {
+                index_path
+            } else {
+                base.join(format!("{}.html", path.trim_start_matches('/')))
+            }
+        };
+
+        if let Some(req_str) = requested.to_str() {
+            if Self::is_honeypot(req_str) {
+                return ResolveResult::Honeypot;
+            }
         }
+
+        let canonical = match requested.canonicalize() {
+            Ok(c) => c,
+            Err(_) => return ResolveResult::NotFound,
+        };
+
+        if !canonical.starts_with(&base) {
+            return ResolveResult::Forbidden;
+        }
+
+        if let Some(canonical_str) = canonical.to_str() {
+            if Self::is_honeypot(canonical_str) {
+                return ResolveResult::Honeypot;
+            }
+        }
+
+        ResolveResult::Found(canonical)
+    }
+
+    fn is_honeypot(path: &str) -> bool {
+        path.contains("etc/passwd")
+            || path.contains("etc/shadow")
+            || path.contains(".env")
+            || path.contains("id_rsa")
+            || path.contains("ssh")
+            || path.contains("wp-config")
+            || path.contains("proc/self")
+            || path.contains("flag")
+            || path.contains("config")
+            || path.contains("aws")
+            || path.contains("docker")
+            || path.contains(".php")
+            || path.contains("../")
     }
 
     fn is_compressible(content_type: &str) -> bool {
