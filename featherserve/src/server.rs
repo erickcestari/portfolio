@@ -4,12 +4,15 @@ use std::{
     net::{TcpListener, TcpStream},
     sync::Arc,
     thread,
+    time::Duration,
 };
 
 use pool::ThreadPool;
 use rustls::ServerConfig;
 
 use crate::{handler::StaticFileHandler, tls, Request};
+
+const TCP_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct Config {
     static_dir: String,
@@ -192,6 +195,10 @@ impl Featherserve {
         tls_config: Option<Arc<ServerConfig>>,
         static_dir: &str,
     ) {
+        let _ = stream.set_read_timeout(Some(TCP_TIMEOUT));
+        let _ = stream.set_write_timeout(Some(TCP_TIMEOUT));
+        let _ = stream.set_nodelay(true);
+
         if let Some(config) = tls_config {
             let Ok(mut conn) = rustls::ServerConnection::new(config) else {
                 return;
