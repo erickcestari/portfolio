@@ -1,10 +1,7 @@
 name: Deploy
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types:
-      - completed
+  push:
     branches:
       - master
 
@@ -14,7 +11,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: portfolio
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Deploy to server
         uses: appleboy/ssh-action@823bd89e131d8d508129f9443cad5855e9ba96f0 # v1.2.4

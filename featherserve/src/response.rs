@@ -1,4 +1,5 @@
-use std::io::{self, Write};
+use std::io;
+use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 pub struct Response {
     status: &'static str,
@@ -45,7 +46,7 @@ impl Response {
         self
     }
 
-    pub fn write_to<W: Write>(self, writer: &mut W) -> io::Result<()> {
+    pub async fn write_to<W: AsyncWrite + Unpin>(self, writer: &mut W) -> io::Result<()> {
         let encoding_header = if self.gzip {
             "Content-Encoding: gzip\r\n"
         } else {
@@ -66,8 +67,8 @@ impl Response {
             cache_header,
         );
 
-        writer.write_all(header.as_bytes())?;
-        writer.write_all(&self.body)
+        writer.write_all(header.as_bytes()).await?;
+        writer.write_all(&self.body).await
     }
 
     fn honeypot_response(path: &str) -> Vec<u8> {

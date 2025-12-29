@@ -1,8 +1,10 @@
-use featherserve::{Config, Featherserve};
+use featherserve::{Config, FeatherserveBuilder};
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let config = Config::from_env();
-    let server = Featherserve::from(config);
+    let builder = FeatherserveBuilder::from(config);
+    let server = builder.build().await.expect("Failed to build server");
 
-    server.run();
+    server.run().await;
 }

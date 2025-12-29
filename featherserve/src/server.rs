@@ -1,23 +1,14 @@
-use std::{
-    env,
-    io::{self, Read, Write},
-    net::{TcpListener, TcpStream},
-    sync::Arc,
-    thread,
-    time::Duration,
-};
+use std::{env, io, sync::Arc};
 
-use pool::ThreadPool;
-use rustls::ServerConfig;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
+use tokio_rustls::TlsAcceptor;
 
 use crate::{cache::FileCache, handler::StaticFileHandler, tls, Request};
-
-const TCP_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct Config {
     static_dir: String,
     http_bind: String,
-    threads: Option<usize>,
     https: Option<HttpsConfig>,
 }
 
@@ -33,7 +24,6 @@ impl Config {
         Self {
             static_dir: env_var("STATIC_DIR"),
             http_bind: env_var("HTTP_BIND"),
-            threads: env::var("THREADS").ok().and_then(|t| t.parse().ok()),
             https: Self::parse_https_config(),
         }
     }
@@ -62,12 +52,12 @@ fn env_var(key: &str) -> String {
 
 struct Listener {
     tcp: TcpListener,
-    tls_config: Option<Arc<ServerConfig>>,
+    tls_acceptor: Option<TlsAcceptor>,
 }
 
 impl Listener {
     fn protocol(&self) -> &'static str {
-        if self.tls_config.is_some() {
+        if self.tls_acceptor.is_some() {
             "https"
         } else {
             "http"
@@ -77,53 +67,22 @@ impl Listener {
 
 pub struct Featherserve {
     listeners: Vec<Listener>,
-    pool: Arc<ThreadPool>,
     static_dir: String,
 }
 
-impl Default for Featherserve {
-    fn default() -> Self {
-        Self::new()
-    }
+pub struct FeatherserveBuilder {
+    static_dir: String,
+    http_bind: Option<String>,
+    https: Option<(String, String, String)>, // (bind, cert_path, key_path)
 }
 
-impl From<Config> for Featherserve {
-    fn from(config: Config) -> Self {
-        let mut server = Featherserve::new()
-            .with_static_dir(&config.static_dir)
-            .bind_http(&config.http_bind)
-            .expect("Failed to bind HTTP");
-
-        if let Some(threads) = config.threads {
-            server = server.with_threads(threads);
-        }
-
-        if let Some(https) = config.https {
-            server = server
-                .bind_https(&https.bind, &https.cert_path, &https.key_path)
-                .expect("Failed to bind HTTPS");
-        }
-
-        server
-    }
-}
-
-impl Featherserve {
+impl FeatherserveBuilder {
     pub fn new() -> Self {
-        let num_threads = thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(4);
-
         Self {
-            listeners: Vec::new(),
-            pool: Arc::new(ThreadPool::new(num_threads)),
             static_dir: "pages".to_string(),
+            http_bind: None,
+            https: None,
         }
-    }
-
-    pub fn with_threads(mut self, num_threads: usize) -> Self {
-        self.pool = Arc::new(ThreadPool::new(num_threads));
-        self
     }
 
     pub fn with_static_dir(mut self, dir: impl Into<String>) -> Self {
@@ -131,23 +90,62 @@ impl Featherserve {
         self
     }
 
-    pub fn bind_http(mut self, addr: &str) -> io::Result<Self> {
-        self.listeners.push(Listener {
-            tcp: TcpListener::bind(addr)?,
-            tls_config: None,
-        });
-        Ok(self)
+    pub fn bind_http(mut self, addr: impl Into<String>) -> Self {
+        self.http_bind = Some(addr.into());
+        self
     }
 
-    pub fn bind_https(mut self, addr: &str, cert_path: &str, key_path: &str) -> io::Result<Self> {
-        self.listeners.push(Listener {
-            tcp: TcpListener::bind(addr)?,
-            tls_config: Some(Arc::new(tls::load_config(cert_path, key_path)?)),
-        });
-        Ok(self)
+    pub fn bind_https(
+        mut self,
+        addr: impl Into<String>,
+        cert_path: impl Into<String>,
+        key_path: impl Into<String>,
+    ) -> Self {
+        self.https = Some((addr.into(), cert_path.into(), key_path.into()));
+        self
     }
 
-    pub fn run(self) {
+    pub async fn build(self) -> io::Result<Featherserve> {
+        let mut listeners = Vec::new();
+
+        if let Some(addr) = self.http_bind {
+            listeners.push(Listener {
+                tcp: TcpListener::bind(&addr).await?,
+                tls_acceptor: None,
+            });
+        }
+
+        if let Some((addr, cert_path, key_path)) = self.https {
+            let config = tls::load_config(&cert_path, &key_path)?;
+            listeners.push(Listener {
+                tcp: TcpListener::bind(&addr).await?,
+                tls_acceptor: Some(TlsAcceptor::from(Arc::new(config))),
+            });
+        }
+
+        Ok(Featherserve {
+            listeners,
+            static_dir: self.static_dir,
+        })
+    }
+}
+
+impl Default for FeatherserveBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Featherserve {
+    pub fn new() -> FeatherserveBuilder {
+        FeatherserveBuilder::new()
+    }
+
+    pub fn with_static_dir(self, dir: impl Into<String>) -> FeatherserveBuilder {
+        FeatherserveBuilder::new().with_static_dir(dir)
+    }
+
+    pub async fn run(self) {
         if self.listeners.is_empty() {
             eprintln!("No listeners configured. Use bind_http() or bind_https() to add listeners.");
             return;
@@ -164,57 +162,61 @@ impl Featherserve {
             );
         }
 
-        let handles: Vec<_> = self
-            .listeners
-            .into_iter()
-            .map(|listener| {
-                let pool = Arc::clone(&self.pool);
-                let cache = Arc::clone(&cache);
-                thread::spawn(move || Self::accept_loop(listener, pool, cache))
-            })
-            .collect();
+        let mut handles = Vec::new();
+
+        for listener in self.listeners {
+            let cache = Arc::clone(&cache);
+            handles.push(tokio::spawn(async move {
+                Self::accept_loop(listener, cache).await;
+            }));
+        }
 
         for handle in handles {
-            let _ = handle.join();
+            let _ = handle.await;
         }
     }
 
-    fn accept_loop(listener: Listener, pool: Arc<ThreadPool>, cache: Arc<FileCache>) {
-        for stream in listener.tcp.incoming() {
-            match stream {
-                Ok(stream) => {
+    async fn accept_loop(listener: Listener, cache: Arc<FileCache>) {
+        loop {
+            match listener.tcp.accept().await {
+                Ok((stream, _)) => {
                     let cache = Arc::clone(&cache);
-                    let tls_config = listener.tls_config.clone();
-                    pool.execute(move || Self::handle_connection(stream, tls_config, cache));
+                    let tls_acceptor = listener.tls_acceptor.clone();
+                    tokio::spawn(async move {
+                        Self::handle_connection(stream, tls_acceptor, cache).await;
+                    });
                 }
                 Err(e) => eprintln!("Connection failed: {}", e),
             }
         }
     }
 
-    fn handle_connection(
-        mut stream: TcpStream,
-        tls_config: Option<Arc<ServerConfig>>,
+    async fn handle_connection(
+        stream: TcpStream,
+        tls_acceptor: Option<TlsAcceptor>,
         cache: Arc<FileCache>,
     ) {
-        let _ = stream.set_read_timeout(Some(TCP_TIMEOUT));
-        let _ = stream.set_write_timeout(Some(TCP_TIMEOUT));
         let _ = stream.set_nodelay(true);
 
-        if let Some(config) = tls_config {
-            let Ok(mut conn) = rustls::ServerConnection::new(config) else {
-                return;
-            };
-            let mut tls_stream = rustls::Stream::new(&mut conn, &mut stream);
-            Self::handle_stream(&mut tls_stream, &cache);
+        if let Some(acceptor) = tls_acceptor {
+            match acceptor.accept(stream).await {
+                Ok(mut tls_stream) => {
+                    Self::handle_stream(&mut tls_stream, &cache).await;
+                }
+                Err(_) => return,
+            }
         } else {
-            Self::handle_stream(&mut stream, &cache);
+            let mut stream = stream;
+            Self::handle_stream(&mut stream, &cache).await;
         }
     }
 
-    fn handle_stream<S: Read + Write>(stream: &mut S, cache: &Arc<FileCache>) {
+    async fn handle_stream<S>(stream: &mut S, cache: &Arc<FileCache>)
+    where
+        S: AsyncReadExt + AsyncWriteExt + Unpin,
+    {
         let mut buf = [0u8; 4096];
-        let n = match stream.read(&mut buf) {
+        let n = match stream.read(&mut buf).await {
             Ok(n) if n > 0 => n,
             _ => return,
         };
@@ -230,6 +232,19 @@ impl Featherserve {
 
         let handler = StaticFileHandler::new(Arc::clone(cache));
         let response = handler.handle(&request);
-        let _ = response.write_to(stream);
+        let _ = response.write_to(stream).await;
+    }
+}
+
+impl From<Config> for FeatherserveBuilder {
+    fn from(config: Config) -> Self {
+        let mut builder = FeatherserveBuilder::new().with_static_dir(&config.static_dir);
+        builder = builder.bind_http(&config.http_bind);
+
+        if let Some(https) = config.https {
+            builder = builder.bind_https(&https.bind, &https.cert_path, &https.key_path);
+        }
+
+        builder
     }
 }
