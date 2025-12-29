@@ -10,7 +10,7 @@ use std::{
 use pool::ThreadPool;
 use rustls::ServerConfig;
 
-use crate::{handler::StaticFileHandler, tls, Request};
+use crate::{cache::FileCache, handler::StaticFileHandler, tls, Request};
 
 const TCP_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -153,6 +153,9 @@ impl Featherserve {
             return;
         }
 
+        // Load all static files into memory cache at startup
+        let cache = Arc::new(FileCache::load(&self.static_dir));
+
         for listener in &self.listeners {
             println!(
                 "Featherserve listening on {}://{}",
@@ -161,14 +164,13 @@ impl Featherserve {
             );
         }
 
-        let static_dir: Arc<str> = self.static_dir.into();
         let handles: Vec<_> = self
             .listeners
             .into_iter()
             .map(|listener| {
                 let pool = Arc::clone(&self.pool);
-                let static_dir = Arc::clone(&static_dir);
-                thread::spawn(move || Self::accept_loop(listener, pool, static_dir))
+                let cache = Arc::clone(&cache);
+                thread::spawn(move || Self::accept_loop(listener, pool, cache))
             })
             .collect();
 
@@ -177,13 +179,13 @@ impl Featherserve {
         }
     }
 
-    fn accept_loop(listener: Listener, pool: Arc<ThreadPool>, static_dir: Arc<str>) {
+    fn accept_loop(listener: Listener, pool: Arc<ThreadPool>, cache: Arc<FileCache>) {
         for stream in listener.tcp.incoming() {
             match stream {
                 Ok(stream) => {
-                    let static_dir = Arc::clone(&static_dir);
+                    let cache = Arc::clone(&cache);
                     let tls_config = listener.tls_config.clone();
-                    pool.execute(move || Self::handle_connection(stream, tls_config, &static_dir));
+                    pool.execute(move || Self::handle_connection(stream, tls_config, cache));
                 }
                 Err(e) => eprintln!("Connection failed: {}", e),
             }
@@ -193,7 +195,7 @@ impl Featherserve {
     fn handle_connection(
         mut stream: TcpStream,
         tls_config: Option<Arc<ServerConfig>>,
-        static_dir: &str,
+        cache: Arc<FileCache>,
     ) {
         let _ = stream.set_read_timeout(Some(TCP_TIMEOUT));
         let _ = stream.set_write_timeout(Some(TCP_TIMEOUT));
@@ -204,13 +206,13 @@ impl Featherserve {
                 return;
             };
             let mut tls_stream = rustls::Stream::new(&mut conn, &mut stream);
-            Self::handle_stream(&mut tls_stream, static_dir);
+            Self::handle_stream(&mut tls_stream, &cache);
         } else {
-            Self::handle_stream(&mut stream, static_dir);
+            Self::handle_stream(&mut stream, &cache);
         }
     }
 
-    fn handle_stream<S: Read + Write>(stream: &mut S, static_dir: &str) {
+    fn handle_stream<S: Read + Write>(stream: &mut S, cache: &Arc<FileCache>) {
         let mut buf = [0u8; 4096];
         let n = match stream.read(&mut buf) {
             Ok(n) if n > 0 => n,
@@ -226,7 +228,7 @@ impl Featherserve {
             return;
         };
 
-        let handler = StaticFileHandler::new(static_dir);
+        let handler = StaticFileHandler::new(Arc::clone(cache));
         let response = handler.handle(&request);
         let _ = response.write_to(stream);
     }
