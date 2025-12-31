@@ -122,6 +122,7 @@ impl FileCache {
                 | "text/plain; charset=utf-8"
                 | "application/javascript"
                 | "application/json"
+                | "application/xml"
                 | "image/svg+xml"
         )
     }
@@ -155,7 +156,8 @@ impl FileCache {
             Some("ico") => "image/x-icon",
             Some("woff") => "font/woff",
             Some("woff2") => "font/woff2",
-            Some("asc") => "text/plain; charset=utf-8",
+            Some("asc" | "txt") => "text/plain; charset=utf-8",
+            Some("xml") => "application/xml",
             _ => "application/octet-stream",
         }
     }
