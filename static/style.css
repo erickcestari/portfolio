@@ -45,6 +45,7 @@ body::before {
 h1 {
     color: var(--accent);
     font-weight: normal;
+    font-size: 2rem;
     margin-bottom: 0.5rem;
 }
 
