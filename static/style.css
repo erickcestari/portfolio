@@ -31,15 +31,50 @@ body::before {
     right: 0;
     bottom: 0;
     pointer-events: none;
-    z-index: -1;
-    background-image:
+    z-index: 9999;
+    background:
         repeating-linear-gradient(
             0deg,
             transparent 0,
             transparent 2px,
-            rgba(255,255,255, 0.05) 2px,
-            rgba(255,255,255, 0.05) 4px
-        );
+            rgba(255,255,255, 0.03) 2px,
+            rgba(255,255,255, 0.03) 4px
+        ),
+        radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.5) 80%, rgba(0,0,0,0.8));
+    animation: flicker 8s infinite;
+}
+
+body::after {
+    content: "";
+    position: fixed;
+    top: -200%;
+    left: 0;
+    right: 0;
+    height: 300%;
+    pointer-events: none;
+    z-index: 9999;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent 0px,
+        rgba(255,255,255,0.015) 80px,
+        transparent 160px,
+        transparent 500px
+    );
+    animation: scanline 25s linear infinite;
+    animation-delay: calc(var(--crt-offset, 0) * -1ms);
+}
+
+@keyframes scanline {
+    0% { top: -200%; }
+    100% { top: 0; }
+}
+
+@keyframes flicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.97; }
+    52% { opacity: 1; }
+    80% { opacity: 0.98; }
+    82% { opacity: 1; }
 }
 
 h1 {
