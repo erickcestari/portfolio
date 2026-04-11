@@ -14,8 +14,11 @@ pub fn load_config(cert_path: &str, key_path: &str) -> io::Result<ServerConfig> 
     let key = private_key(&mut BufReader::new(key_file))?
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "No private key found"))?;
 
-    ServerConfig::builder()
+    let mut config = ServerConfig::builder()
         .with_no_client_auth()
         .with_single_cert(certs, key)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+    config.alpn_protocols = vec![b"h2".to_vec()];
+    Ok(config)
 }

@@ -1,18 +1,15 @@
-use std::io;
-use tokio::io::{AsyncWrite, AsyncWriteExt};
-
 pub struct Response {
-    status: &'static str,
-    content_type: &'static str,
-    body: Vec<u8>,
-    gzip: bool,
-    cache_control: Option<&'static str>,
+    pub status: u16,
+    pub content_type: &'static str,
+    pub body: Vec<u8>,
+    pub gzip: bool,
+    pub cache_control: Option<&'static str>,
 }
 
 impl Response {
     pub fn ok(body: Vec<u8>, content_type: &'static str, gzip: bool) -> Self {
         Self {
-            status: "200 OK",
+            status: 200,
             content_type,
             body,
             gzip,
@@ -22,7 +19,7 @@ impl Response {
 
     pub fn not_found(body: Vec<u8>, content_type: &'static str, gzip: bool) -> Self {
         Self {
-            status: "404 NOT FOUND",
+            status: 404,
             content_type,
             body,
             gzip,
@@ -33,7 +30,7 @@ impl Response {
     pub fn forbidden(attempted_path: &str) -> Self {
         let body = Self::honeypot_response(attempted_path);
         Self {
-            status: "200 OK",
+            status: 200,
             content_type: "text/plain",
             body,
             gzip: false,
@@ -44,31 +41,6 @@ impl Response {
     pub fn with_cache_control(mut self, cache_control: &'static str) -> Self {
         self.cache_control = Some(cache_control);
         self
-    }
-
-    pub async fn write_to<W: AsyncWrite + Unpin>(self, writer: &mut W) -> io::Result<()> {
-        let encoding_header = if self.gzip {
-            "Content-Encoding: gzip\r\n"
-        } else {
-            ""
-        };
-
-        let cache_header = self
-            .cache_control
-            .map(|cc| format!("Cache-Control: {}\r\n", cc))
-            .unwrap_or_default();
-
-        let header = format!(
-            "HTTP/1.1 {}\r\nContent-Length: {}\r\nContent-Type: {}\r\n{}{}\r\n",
-            self.status,
-            self.body.len(),
-            self.content_type,
-            encoding_header,
-            cache_header,
-        );
-
-        writer.write_all(header.as_bytes()).await?;
-        writer.write_all(&self.body).await
     }
 
     fn honeypot_response(path: &str) -> Vec<u8> {
@@ -255,7 +227,7 @@ services:\n\
             br#"Nice attack, but you're not allowed to do that.
 Better luck next time, script kiddie.
 
-     
+
     _____
    /     \
   | () () |

@@ -1,10 +1,12 @@
 use std::{env, io, sync::Arc};
 
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use bytes::Bytes;
+use h2::server;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::TlsAcceptor;
 
-use crate::{cache::FileCache, handler::StaticFileHandler, tls, Request};
+use crate::{cache::FileCache, handler::StaticFileHandler, Request};
 
 pub struct Config {
     static_dir: String,
@@ -58,9 +60,9 @@ struct Listener {
 impl Listener {
     fn protocol(&self) -> &'static str {
         if self.tls_acceptor.is_some() {
-            "https"
+            "h2 (TLS)"
         } else {
-            "http"
+            "http/1.1"
         }
     }
 }
@@ -116,7 +118,7 @@ impl FeatherserveBuilder {
         }
 
         if let Some((addr, cert_path, key_path)) = self.https {
-            let config = tls::load_config(&cert_path, &key_path)?;
+            let config = crate::tls::load_config(&cert_path, &key_path)?;
             listeners.push(Listener {
                 tcp: TcpListener::bind(&addr).await?,
                 tls_acceptor: Some(TlsAcceptor::from(Arc::new(config))),
@@ -151,7 +153,6 @@ impl Featherserve {
             return;
         }
 
-        // Load all static files into memory cache at startup
         let cache = Arc::new(FileCache::load(&self.static_dir));
 
         for listener in &self.listeners {
@@ -200,18 +201,15 @@ impl Featherserve {
 
         if let Some(acceptor) = tls_acceptor {
             match acceptor.accept(stream).await {
-                Ok(mut tls_stream) => {
-                    Self::handle_stream(&mut tls_stream, &cache).await;
-                }
-                Err(_) => return,
+                Ok(tls_stream) => Self::serve_h2(tls_stream, cache).await,
+                Err(_) => {}
             }
         } else {
-            let mut stream = stream;
-            Self::handle_stream(&mut stream, &cache).await;
+            Self::serve_h1(stream, cache).await;
         }
     }
 
-    async fn handle_stream<S>(stream: &mut S, cache: &Arc<FileCache>)
+    async fn serve_h1<S>(mut stream: S, cache: Arc<FileCache>)
     where
         S: AsyncReadExt + AsyncWriteExt + Unpin,
     {
@@ -226,13 +224,103 @@ impl Featherserve {
             Err(_) => return,
         };
 
-        let Some(request) = Request::parse(request_str) else {
+        let Some(request) = Request::parse_h1(request_str) else {
             return;
         };
 
-        let handler = StaticFileHandler::new(Arc::clone(cache));
+        let handler = StaticFileHandler::new(Arc::clone(&cache));
         let response = handler.handle(&request);
-        let _ = response.write_to(stream).await;
+
+        let encoding_header = if response.gzip {
+            "Content-Encoding: gzip\r\n"
+        } else {
+            ""
+        };
+
+        let cache_header = response
+            .cache_control
+            .map(|cc| format!("Cache-Control: {}\r\n", cc))
+            .unwrap_or_default();
+
+        let status_text = match response.status {
+            200 => "200 OK",
+            404 => "404 NOT FOUND",
+            _ => "200 OK",
+        };
+
+        let header = format!(
+            "HTTP/1.1 {}\r\nContent-Length: {}\r\nContent-Type: {}\r\n{}{}\r\n",
+            status_text,
+            response.body.len(),
+            response.content_type,
+            encoding_header,
+            cache_header,
+        );
+
+        let _ = stream.write_all(header.as_bytes()).await;
+        let _ = stream.write_all(&response.body).await;
+    }
+
+    async fn serve_h2<S>(io: S, cache: Arc<FileCache>)
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        let mut connection = match server::handshake(io).await {
+            Ok(conn) => conn,
+            Err(e) => {
+                eprintln!("H2 handshake error: {}", e);
+                return;
+            }
+        };
+
+        while let Some(result) = connection.accept().await {
+            let (request, respond) = match result {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("H2 error: {}", e);
+                    return;
+                }
+            };
+
+            let cache = Arc::clone(&cache);
+            tokio::spawn(async move {
+                Self::handle_request(request, respond, cache);
+            });
+        }
+    }
+
+    fn handle_request(
+        request: http::Request<h2::RecvStream>,
+        mut respond: server::SendResponse<Bytes>,
+        cache: Arc<FileCache>,
+    ) {
+        let req = Request::from_h2(&request);
+        let handler = StaticFileHandler::new(cache);
+        let response = handler.handle(&req);
+
+        let mut builder = http::Response::builder().status(response.status);
+
+        builder = builder.header("content-type", response.content_type);
+
+        if response.gzip {
+            builder = builder.header("content-encoding", "gzip");
+        }
+
+        if let Some(cc) = response.cache_control {
+            builder = builder.header("cache-control", cc);
+        }
+
+        let end_of_stream = response.body.is_empty();
+        let h2_response = builder.body(()).unwrap();
+
+        let mut send = match respond.send_response(h2_response, end_of_stream) {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+
+        if !end_of_stream {
+            let _ = send.send_data(Bytes::from(response.body), true);
+        }
     }
 }
 
