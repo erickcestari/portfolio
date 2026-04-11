@@ -15,11 +15,11 @@ impl StaticFileHandler {
         println!("Request: {}", request.path);
 
         // Check for honeypot patterns first
-        if Self::is_honeypot(request.path) {
-            return Response::forbidden(request.path);
+        if Self::is_honeypot(&request.path) {
+            return Response::forbidden(&request.path);
         }
 
-        if let Some(cached) = self.cache.get(request.path) {
+        if let Some(cached) = self.cache.get(&request.path) {
             return Self::build_response(cached, request.accepts_gzip, true);
         }
 
