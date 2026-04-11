@@ -49,6 +49,20 @@ impl FileCache {
 
         for entry in read_dir.flatten() {
             let path = entry.path();
+
+            // Prevent symlink traversal: verify resolved path stays within base
+            let canonical = match path.canonicalize() {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            if !canonical.starts_with(base) {
+                eprintln!(
+                    "Warning: Skipping path outside static dir: {}",
+                    path.display()
+                );
+                continue;
+            }
+
             if path.is_dir() {
                 Self::load_dir(base, &path, entries);
             } else if path.is_file() {

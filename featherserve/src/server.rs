@@ -4,9 +4,18 @@ use bytes::Bytes;
 use h2::server;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::time::{timeout, Duration};
 use tokio_rustls::TlsAcceptor;
 
 use crate::{cache::FileCache, handler::StaticFileHandler, Request};
+
+const READ_TIMEOUT: Duration = Duration::from_secs(30);
+const H1_MAX_HEADER_SIZE: usize = 8192;
+
+const SECURITY_HEADERS: &str = "\
+X-Content-Type-Options: nosniff\r\n\
+X-Frame-Options: DENY\r\n\
+Referrer-Policy: strict-origin-when-cross-origin\r\n";
 
 pub struct Config {
     static_dir: String,
@@ -200,12 +209,37 @@ impl Featherserve {
         let _ = stream.set_nodelay(true);
 
         if let Some(acceptor) = tls_acceptor {
-            match acceptor.accept(stream).await {
-                Ok(tls_stream) => Self::serve_h2(tls_stream, cache).await,
-                Err(_) => {}
+            match timeout(READ_TIMEOUT, acceptor.accept(stream)).await {
+                Ok(Ok(tls_stream)) => Self::serve_h2(tls_stream, cache).await,
+                _ => {}
             }
         } else {
             Self::serve_h1(stream, cache).await;
+        }
+    }
+
+    async fn read_h1_headers<S: AsyncReadExt + Unpin>(stream: &mut S) -> Option<Vec<u8>> {
+        let mut buf = Vec::with_capacity(4096);
+        let mut tmp = [0u8; 1024];
+
+        loop {
+            let n = match timeout(READ_TIMEOUT, stream.read(&mut tmp)).await {
+                Ok(Ok(n)) if n > 0 => n,
+                _ => return if buf.is_empty() { None } else { Some(buf) },
+            };
+
+            let prev_len = buf.len();
+            buf.extend_from_slice(&tmp[..n]);
+
+            if buf.len() > H1_MAX_HEADER_SIZE {
+                return None;
+            }
+
+            // Only search newly added bytes plus overlap for boundary matches
+            let search_start = prev_len.saturating_sub(3);
+            if buf[search_start..].windows(4).any(|w| w == b"\r\n\r\n") {
+                return Some(buf);
+            }
         }
     }
 
@@ -213,13 +247,12 @@ impl Featherserve {
     where
         S: AsyncReadExt + AsyncWriteExt + Unpin,
     {
-        let mut buf = [0u8; 4096];
-        let n = match stream.read(&mut buf).await {
-            Ok(n) if n > 0 => n,
-            _ => return,
+        let buf = match Self::read_h1_headers(&mut stream).await {
+            Some(b) => b,
+            None => return,
         };
 
-        let request_str = match std::str::from_utf8(&buf[..n]) {
+        let request_str = match std::str::from_utf8(&buf) {
             Ok(s) => s,
             Err(_) => return,
         };
@@ -249,12 +282,13 @@ impl Featherserve {
         };
 
         let header = format!(
-            "HTTP/1.1 {}\r\nContent-Length: {}\r\nContent-Type: {}\r\n{}{}\r\n",
+            "HTTP/1.1 {}\r\nContent-Length: {}\r\nContent-Type: {}\r\n{}{}{}\r\n",
             status_text,
             response.body.len(),
             response.content_type,
             encoding_header,
             cache_header,
+            SECURITY_HEADERS,
         );
 
         let _ = stream.write_all(header.as_bytes()).await;
@@ -301,6 +335,9 @@ impl Featherserve {
         let mut builder = http::Response::builder().status(response.status);
 
         builder = builder.header("content-type", response.content_type);
+        builder = builder.header("x-content-type-options", "nosniff");
+        builder = builder.header("x-frame-options", "DENY");
+        builder = builder.header("referrer-policy", "strict-origin-when-cross-origin");
 
         if response.gzip {
             builder = builder.header("content-encoding", "gzip");
