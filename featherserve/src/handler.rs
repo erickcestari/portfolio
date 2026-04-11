@@ -12,7 +12,7 @@ impl StaticFileHandler {
     }
 
     pub fn handle(&self, request: &Request) -> Response {
-        println!("Request: {}", request.path);
+        println!("Request: {}", request.path.escape_default());
 
         // Check for honeypot patterns first
         if Self::is_honeypot(&request.path) {
