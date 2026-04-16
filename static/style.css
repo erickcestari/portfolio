@@ -100,6 +100,166 @@ article p {
     margin-bottom: 1rem;
 }
 
+article ul, article ol {
+    margin-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+article pre {
+    border: 1px solid var(--fg);
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+article code {
+    font-family: monospace;
+}
+
+.post-list {
+    list-style: none;
+    margin-left: 0;
+}
+
+.post-list li {
+    margin-bottom: 0.4rem;
+}
+
+.post-list time {
+    opacity: 0.7;
+    margin-right: 0.75rem;
+}
+
+.post-meta {
+    opacity: 0.7;
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+}
+
+article table {
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    display: block;
+    overflow-x: auto;
+}
+
+article th, article td {
+    border: 1px solid var(--fg);
+    padding: 0.3rem 0.6rem;
+    text-align: left;
+}
+
+article th {
+    color: var(--accent);
+    font-weight: normal;
+}
+
+article img {
+    max-width: 100%;
+    height: auto;
+    margin-bottom: 1rem;
+}
+
+article figure:has(figcaption) {
+    margin-bottom: 1.25rem;
+}
+
+article figure:has(figcaption) img {
+    display: block;
+    margin: 0 auto;
+}
+
+article figcaption {
+    opacity: 0.7;
+    font-size: 0.85rem;
+    text-align: center;
+    margin-top: 0.5rem;
+    line-height: 1.4;
+}
+
+article blockquote {
+    border-left: 2px solid var(--fg);
+    padding-left: 1rem;
+    opacity: 0.85;
+    margin-bottom: 1rem;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+}
+
+.toc {
+    border: 1px solid var(--fg);
+    padding: 0.5rem 0.9rem;
+    margin-bottom: 2rem;
+    font-size: 0.9rem;
+}
+
+.toc summary {
+    cursor: pointer;
+    color: var(--accent);
+    list-style: none;
+}
+
+.toc summary::-webkit-details-marker {
+    display: none;
+}
+
+.toc summary::before {
+    content: "+ ";
+}
+
+.toc details[open] summary::before {
+    content: "- ";
+}
+
+.toc ul {
+    list-style: none;
+    margin: 0.6rem 0 0 0;
+}
+
+.toc li {
+    margin-bottom: 0.15rem;
+    line-height: 1.35;
+}
+
+.toc li.toc-h3 {
+    padding-left: 1.25rem;
+}
+
+.toc a {
+    text-decoration: none;
+}
+
+h2, h3, h4 {
+    scroll-margin-top: 1rem;
+}
+
+@media (min-width: 1200px) {
+    .toc {
+        position: fixed;
+        top: 2rem;
+        left: calc(50% + 370px);
+        width: 220px;
+        max-height: calc(100vh - 4rem);
+        overflow-y: auto;
+        margin-bottom: 0;
+        font-size: 0.8rem;
+    }
+
+    .toc summary {
+        display: none;
+    }
+}
+
 a {
     color: var(--accent);
     text-decoration: none;
