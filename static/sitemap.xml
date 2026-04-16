@@ -17,6 +17,10 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://erickcestari.dev/blog/onion-message-jamming/</loc>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://erickcestari.dev/blog/hello-world/</loc>
     <priority>0.6</priority>
   </url>
