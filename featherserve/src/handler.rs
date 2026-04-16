@@ -36,10 +36,9 @@ impl StaticFileHandler {
         accepts_gzip: bool,
         found: bool,
     ) -> Response {
-        let (body, gzip) = if accepts_gzip && cached.body_gzip.is_some() {
-            (cached.body_gzip.as_ref().unwrap().to_vec(), true)
-        } else {
-            (cached.body.to_vec(), false)
+        let (body, gzip) = match (accepts_gzip, cached.body_gzip.as_ref()) {
+            (true, Some(gz)) => (gz.to_vec(), true),
+            _ => (cached.body.to_vec(), false),
         };
 
         let response = if found {

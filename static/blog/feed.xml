@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>erickcestari.dev</title>
+  <link href="https://erickcestari.dev/blog/feed.xml" rel="self"/>
+  <link href="https://erickcestari.dev/blog"/>
+  <id>https://erickcestari.dev/blog</id>
+  <updated>2026-04-16T00:00:00Z</updated>
+  <entry>
+    <title>onion message jamming in the lightning network</title>
+    <link href="https://erickcestari.dev/blog/onion-message-jamming/"/>
+    <id>https://erickcestari.dev/blog/onion-message-jamming/</id>
+    <updated>2026-04-16T00:00:00Z</updated>
+    <summary>how onion messages can be used to jam the Lightning Network, and four proposed mitigations with their tradeoffs.</summary>
+  </entry>
+  <entry>
+    <title>hello world</title>
+    <link href="https://erickcestari.dev/blog/hello-world/"/>
+    <id>https://erickcestari.dev/blog/hello-world/</id>
+    <updated>2026-04-15T00:00:00Z</updated>
+    <summary>first post, a quick note on why this blog exists and what to expect.</summary>
+  </entry>
+</feed>
