@@ -8,14 +8,12 @@
   <meta name="author" content="Erick Cestari">
   <link rel="canonical" href="https://erickcestari.dev/blog">
 
-  <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="Blog - Erick Cestari">
   <meta property="og:description" content="Articles on security research, fuzzing, Bitcoin, and Lightning Network.">
   <meta property="og:url" content="https://erickcestari.dev/blog">
   <meta property="og:image" content="https://erickcestari.dev/profile.webp">
 
-  <!-- Twitter Card -->
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Blog - Erick Cestari">
   <meta name="twitter:description" content="Articles on security research, fuzzing, Bitcoin, and Lightning Network.">
@@ -24,8 +22,9 @@
   <title>blog - erickcestari.dev</title>
 
   <link rel="icon" href="/favicon.png" sizes="32x32" type="image/png">
+  <link rel="alternate" type="application/atom+xml" title="Atom feed" href="/blog/feed.xml">
 
-  <link rel="preload" href="style.css" as="style">
+  <link rel="preload" href="/style.css" as="style">
   <link rel="stylesheet" href="/style.css">
   <script>document.documentElement.style.setProperty('--crt-offset',Date.now()%25000)</script>
 </head>
@@ -44,19 +43,21 @@
   <main>
     <article>
       <h1>blog</h1>
-      <p>I'm currently working on a blog, but it's not ready yet.</p>
+      <ul class="post-list">
+        <li><time>2026-04-15</time> <a href="/blog/hello-world/">hello world</a></li>
+      </ul>
     </article>
   </main>
 
   <footer>
-        <div class="identity">
-            <div>pgp: <a href="/pubkey.asc">0xD7D17E26F2FC3F3C</a></div>
-            <div>bitcoin: <code><a href="bitcoin:bc1qxz9x6txpdtq5cs5m2rz2hxtw95du64z259msmh">bc1qxz9x6txpdtq5cs5m2rz2hxtw95du64z259msmh</a></code></div>
-        </div>
-        <a title="250KB Club page" href="https://250kb.club/erickcestari-dev">
-            <img alt="badge: proud member of the 250KB Club" src="/250kbclub.png" />
-        </a>
-    </footer>
+    <div class="identity">
+      <div>pgp: <a href="/pubkey.asc">0xD7D17E26F2FC3F3C</a></div>
+      <div>bitcoin: <code><a href="bitcoin:bc1qxz9x6txpdtq5cs5m2rz2hxtw95du64z259msmh">bc1qxz9x6txpdtq5cs5m2rz2hxtw95du64z259msmh</a></code></div>
+    </div>
+    <a title="250KB Club page" href="https://250kb.club/erickcestari-dev">
+      <img alt="badge: proud member of the 250KB Club" src="/250kbclub.png" />
+    </a>
+  </footer>
 </body>
 
 </html>

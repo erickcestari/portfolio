@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="first post, a quick note on why this blog exists and what to expect.">
+    <meta name="author" content="Erick Cestari">
+    <link rel="canonical" href="https://erickcestari.dev/blog/hello-world/">
+
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="hello world - Erick Cestari">
+    <meta property="og:description" content="first post, a quick note on why this blog exists and what to expect.">
+    <meta property="og:url" content="https://erickcestari.dev/blog/hello-world/">
+    <meta property="og:image" content="https://erickcestari.dev/profile.webp">
+
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="hello world - Erick Cestari">
+    <meta name="twitter:description" content="first post, a quick note on why this blog exists and what to expect.">
+    <meta name="twitter:image" content="https://erickcestari.dev/profile.webp">
+
+    <title>hello world - erickcestari.dev</title>
+
+    <link rel="icon" href="/favicon.png" sizes="32x32" type="image/png">
+    <link rel="alternate" type="application/atom+xml" title="Atom feed" href="/blog/feed.xml">
+
+    <link rel="preload" href="/style.css" as="style">
+    <link rel="stylesheet" href="/style.css">
+    <script>document.documentElement.style.setProperty('--crt-offset',Date.now()%25000)</script>
+</head>
+
+<body>
+    <header>
+        <nav>
+            <a href="/">/home</a>
+            <a href="/blog">/blog</a>
+            <a href="/about">/about</a>
+            <a href="/contact">/contact</a>
+            <a href="https://github.com/erickcestari" target="_blank" rel="noopener noreferrer">/github</a>
+        </nav>
+    </header>
+
+    <main>
+        <article>
+            <h1>hello world</h1>
+            <p class="post-meta"><time>2026-04-15</time></p>
+            <nav class="toc" aria-label="table of contents">
+  <details open>
+    <summary>contents</summary>
+    <ul>
+      <li class="toc-h2"><a href="#what-you-ll-find-here">what you&#39;ll find here</a></li>
+      <li class="toc-h2"><a href="#why-static-html">why static html</a></li>
+    </ul>
+  </details>
+</nav>
+
+            <p>This is the first post on this site. Everything here is written in markdown, rendered at build time by a small Rust generator, then served as plain static HTML by <a href="https://github.com/erickcestari/portfolio">featherserve</a>. A custom web server running this domain.</p>
+<h2 id="what-you-ll-find-here">what you'll find here</h2>
+<ul>
+<li>notes from security research on Bitcoin and Lightning</li>
+<li>fuzzing findings and disclosures</li>
+<li>occasional rabbit holes: emulators, low-level Rust, and whatever else I'm building</li>
+</ul>
+<h2 id="why-static-html">why static html</h2>
+<p>No JavaScript on the page, no client-side rendering, no tracking.</p>
+<pre><code class="language-rust">fn main() {
+    println!("hello, world!");
+}
+</code></pre>
+<p>More soon.</p>
+
+        </article>
+    </main>
+
+    <footer>
+        <div class="identity">
+            <div>pgp: <a href="/pubkey.asc">0xD7D17E26F2FC3F3C</a></div>
+            <div>bitcoin: <code><a href="bitcoin:bc1qxz9x6txpdtq5cs5m2rz2hxtw95du64z259msmh">bc1qxz9x6txpdtq5cs5m2rz2hxtw95du64z259msmh</a></code></div>
+        </div>
+        <a title="250KB Club page" href="https://250kb.club/erickcestari-dev">
+            <img alt="badge: proud member of the 250KB Club" src="/250kbclub.png" />
+        </a>
+    </footer>
+</body>
+
+</html>
