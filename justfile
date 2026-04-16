@@ -1,4 +1,5 @@
 alias b := build
+alias bl := blog
 alias c := check
 alias d := delete
 alias f := fmt
@@ -11,6 +12,10 @@ _default:
 # Build
 build:
     cargo build
+
+# Generate blog HTML from content/blog/*.md
+blog:
+    cargo run -p blog-gen --release
 
 # Check code: formatting, compilation, linting, and commit signature
 check:
