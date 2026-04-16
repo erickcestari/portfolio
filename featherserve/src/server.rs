@@ -178,7 +178,7 @@ impl Default for FeatherserveBuilder {
 }
 
 impl Featherserve {
-    pub fn new() -> FeatherserveBuilder {
+    pub fn builder() -> FeatherserveBuilder {
         FeatherserveBuilder::new()
     }
 
@@ -276,9 +276,8 @@ impl Featherserve {
         let _ = stream.set_nodelay(true);
 
         if let Some(acceptor) = tls_acceptor {
-            match timeout(READ_TIMEOUT, acceptor.accept(stream)).await {
-                Ok(Ok(tls_stream)) => Self::serve_h2(tls_stream, cache, alt_svc).await,
-                _ => {}
+            if let Ok(Ok(tls_stream)) = timeout(READ_TIMEOUT, acceptor.accept(stream)).await {
+                Self::serve_h2(tls_stream, cache, alt_svc).await;
             }
         } else {
             Self::serve_h1(stream, cache, alt_svc).await;
