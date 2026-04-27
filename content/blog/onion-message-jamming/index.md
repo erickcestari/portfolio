@@ -100,8 +100,6 @@ LND has completed onion message forwarding as part of its BOLT 12 roadmap, with 
 
 Channel jamming illustrates how difficult it is to retrofit mitigations once a vulnerability is well established. Significant research and BOLTs proposals are underway, but reaching consensus and deploying a solution across all implementations takes time. Tor faced a similar challenge when a [prolonged DDoS attack](https://blog.torproject.org/tor-network-ddos-attack/) degraded its network for months in late 2022, requiring defenses to be built under pressure. With onion message support now reaching full network coverage, we have a window to design and ship mitigations early, and I think we should take it.
 
-Feedback is welcome on which approach (or combination of approaches) you think is most viable, and whether there are alternative directions I haven't considered here. PGP or email works — see [/contact](/contact).
-
 *Thanks to Matt Morehouse and Gijs van Dam for reviewing drafts of this post.*
 
 ---
