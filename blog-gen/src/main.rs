@@ -16,6 +16,7 @@ struct Post {
     description: String,
     html: String,
     toc: String,
+    reading_time: u32,
 }
 
 struct Heading {
@@ -181,6 +182,7 @@ fn parse_post(path: &Path, default_slug: &str) -> Result<Post, String> {
 
     let (html_out, headings) = render_markdown(body);
     let toc = render_toc(&headings);
+    let reading_time = estimate_reading_minutes(body);
 
     Ok(Post {
         slug,
@@ -189,7 +191,13 @@ fn parse_post(path: &Path, default_slug: &str) -> Result<Post, String> {
         description,
         html: html_out,
         toc,
+        reading_time,
     })
+}
+
+fn estimate_reading_minutes(body: &str) -> u32 {
+    let words = body.split_whitespace().count() as u32;
+    ((words as f32) / 220.0).ceil().max(1.0) as u32
 }
 
 fn render_markdown(body: &str) -> (String, Vec<Heading>) {
@@ -403,6 +411,7 @@ fn render_post(tmpl: &str, p: &Post) -> String {
         .replace("{{slug}}", &p.slug)
         .replace("{{url}}", &format!("{}/blog/{}/", SITE_URL, p.slug))
         .replace("{{toc}}", &p.toc)
+        .replace("{{reading_time}}", &p.reading_time.to_string())
         .replace("{{content}}", &p.html)
 }
 
