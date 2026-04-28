@@ -30,6 +30,7 @@
 </head>
 
 <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
     <header>
         <nav>
             <a href="/">/home</a>
@@ -40,10 +41,10 @@
         </nav>
     </header>
 
-    <main>
+    <main id="main-content">
         <article>
             <h1>onion message jamming in the lightning network</h1>
-            <p class="post-meta"><time>2026-04-16</time></p>
+            <p class="post-meta"><time>2026-04-16</time><span class="reading-time">14 min read</span></p>
             <nav class="toc" aria-label="table of contents">
   <details open>
     <summary>contents</summary>
@@ -124,7 +125,6 @@
 <p>Each of the four mitigations addresses a different aspect of the problem. Upfront fees and bandwidth metered payment both make flooding expensive by compensating forwarding nodes, but differ in mechanism: upfront fees are stateless and per-message, while bandwidth metered payment uses stateful session-based bulk prepayment better suited for sustained communication. Hop leashing with proof-of-stake limits the attacker's reach and ties forwarding capacity to economic commitment. Backpropagation-based rate limiting offers a lightweight, reactive defense that requires no payment infrastructure. Each comes with meaningful tradeoffs and differences in implementation and deployment complexity.</p>
 <p>LND has completed onion message forwarding as part of its BOLT 12 roadmap, with the final PR now merged and awaiting release. Once released, all major implementations will support the protocol, significantly expanding the attack surface. If BOLT 12 becomes the standard method for invoice requests, offers, refunds, and asynchronous payments, a sustained jamming attack would cause a severely degraded user experience.</p>
 <p>Channel jamming illustrates how difficult it is to retrofit mitigations once a vulnerability is well established. Significant research and BOLTs proposals are underway, but reaching consensus and deploying a solution across all implementations takes time. Tor faced a similar challenge when a <a href="https://blog.torproject.org/tor-network-ddos-attack/">prolonged DDoS attack</a> degraded its network for months in late 2022, requiring defenses to be built under pressure. With onion message support now reaching full network coverage, we have a window to design and ship mitigations early, and I think we should take it.</p>
-<p>Feedback is welcome on which approach (or combination of approaches) you think is most viable, and whether there are alternative directions I haven't considered here. PGP or email works — see <a href="/contact">/contact</a>.</p>
 <p><em>Thanks to Matt Morehouse and Gijs van Dam for reviewing drafts of this post.</em></p>
 <hr />
 <h2 id="annex-a-maximum-hop-count-derivation">Annex A: maximum hop count derivation</h2>
