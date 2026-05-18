@@ -152,7 +152,7 @@ impl FileCache {
             Some(
                 "css" | "js" | "png" | "jpg" | "jpeg" | "webp" | "ico" | "svg" | "woff" | "woff2",
             ) => Some("public, max-age=300, must-revalidate"),
-            Some("html") => Some("no-cache, must-revalidate"),
+            Some("html") => Some("public, max-age=300, must-revalidate"),
             _ => None,
         }
     }
