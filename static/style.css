@@ -609,8 +609,8 @@ nav a:hover {
     color: var(--ink);
 }
 
-nav a:last-child {
-    margin-left: auto;
+nav a:first-child {
+    margin-right: auto;
 }
 
 header {
@@ -690,8 +690,8 @@ article > figure:first-of-type img {
         margin-top: 0.25rem;
     }
 
-    nav a:last-child {
-        margin-left: 0;
+    nav a:first-child {
+        margin-right: 0;
     }
 
     footer {
