@@ -82,6 +82,17 @@
             <img alt="badge: proud member of the 250KB Club" src="/250kbclub.png" />
         </a>
     </footer>
+    <script>
+        document.querySelectorAll('article h2[id], article h3[id], article h4[id]').forEach(h => {
+            h.addEventListener('click', e => {
+                if (e.target.closest('a')) return;
+                history.replaceState(null, '', '#' + h.id);
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(location.href).catch(() => {});
+                }
+            });
+        });
+    </script>
 </body>
 
 </html>
