@@ -35,8 +35,6 @@
     <nav>
       <a href="/">/erickcestari</a>
       <a href="/blog">/blog</a>
-      <a href="/about">/about</a>
-      <a href="/contact">/contact</a>
       <a href="https://github.com/erickcestari" target="_blank" rel="noopener noreferrer">/github</a>
     </nav>
   </header>
@@ -46,7 +44,6 @@
       <h1>blog</h1>
       <ul class="post-list">
         <li><time>2026-04-16</time> <a href="/blog/onion-message-jamming/">onion message jamming in the lightning network</a></li>
-        <li><time>2026-04-15</time> <a href="/blog/hello-world/">hello world</a></li>
       </ul>
     </article>
   </main>
@@ -55,6 +52,9 @@
     <div class="identity">
       <div>pgp: <a href="/pubkey.asc">0xD7D17E26F2FC3F3C</a></div>
       <div>bitcoin: <code><a href="bitcoin:bc1qxz9x6txpdtq5cs5m2rz2hxtw95du64z259msmh">bc1qxz9x6txpdtq5cs5m2rz2hxtw95du64z259msmh</a></code></div>
+      <details class="email-fetch"><summary>email</summary><pre><code>curl -s https://erickcestari.dev/pubkey.asc \
+  | gpg --show-keys --with-colons \
+  | awk -F: '/^uid:/ {print $10}'</code></pre></details>
     </div>
     <a title="250KB Club page" href="https://250kb.club/erickcestari-dev">
       <img alt="badge: proud member of the 250KB Club" src="/250kbclub.png" />
