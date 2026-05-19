@@ -10,13 +10,6 @@
     <link href="https://erickcestari.dev/blog/onion-message-jamming/"/>
     <id>https://erickcestari.dev/blog/onion-message-jamming/</id>
     <updated>2026-04-16T00:00:00Z</updated>
-    <summary>how onion messages can be used to jam the Lightning Network, and four proposed mitigations with their tradeoffs.</summary>
-  </entry>
-  <entry>
-    <title>hello world</title>
-    <link href="https://erickcestari.dev/blog/hello-world/"/>
-    <id>https://erickcestari.dev/blog/hello-world/</id>
-    <updated>2026-04-15T00:00:00Z</updated>
-    <summary>first post, a quick note on why this blog exists and what to expect.</summary>
+    <summary>BOLT 12 is rolling out everywhere, and the onion message rate limits we ship today protect the node but not the network. Here&#39;s the attack, and four ways out.</summary>
   </entry>
 </feed>

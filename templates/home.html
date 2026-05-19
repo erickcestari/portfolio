@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Erick Cestari - Security researcher at Lightning Labs. Maintainer of Bitcoinfuzz, hunting vulnerabilities in Bitcoin and Lightning Network.">
+    <meta name="author" content="Erick Cestari">
+    <link rel="canonical" href="https://erickcestari.dev/">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Erick Cestari - Security Researcher at Lightning Labs">
+    <meta property="og:description"
+        content="Security researcher at Lightning Labs. Maintainer of Bitcoinfuzz, hunting vulnerabilities in Bitcoin and Lightning Network.">
+    <meta property="og:url" content="https://erickcestari.dev/">
+    <meta property="og:image" content="https://erickcestari.dev/profile.webp">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Erick Cestari - Security Researcher at Lightning Labs">
+    <meta name="twitter:description"
+        content="Security researcher at Lightning Labs. Maintainer of Bitcoinfuzz.">
+    <meta name="twitter:image" content="https://erickcestari.dev/profile.webp">
+
+    <title>erickcestari.dev</title>
+
+    <link rel="icon" href="/favicon.png" sizes="32x32" type="image/png">
+    <link rel="alternate" type="application/atom+xml" title="Atom feed" href="/blog/feed.xml">
+
+    <link rel="preload" href="style.css" as="style">
+    <link rel="stylesheet" href="style.css">
+    <script>console.log("%c$ bitcoin-cli getblock 000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f\n\n  \"The Times 03/Jan/2009 Chancellor on brink of second bailout for banks.\"\n\n  — don't trust. verify.","color:#fff;font-family:monospace;text-shadow:0 0 6px rgba(255,255,255,0.4)")</script>
+</head>
+
+<body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header>
+        <nav>
+            <a href="/">/erickcestari</a>
+            <a href="/blog">/blog</a>
+            <a href="https://github.com/erickcestari" target="_blank" rel="noopener noreferrer">/github</a>
+        </nav>
+    </header>
+
+    <main id="main-content">
+        <article>
+            <figure>
+                <img src="/profile.webp" fetchpriority=high alt="Erick Cestari's profile picture" width="200"
+                    height="200">
+            </figure>
+            <p>I'm Erick Cestari, a security researcher at <a href="https://lightning.engineering"
+                    target="_blank" rel="noopener noreferrer">Lightning Labs</a> and former <a
+                    href="https://vinteum.org" target="_blank" rel="noopener noreferrer">Vinteum</a> grantee.</p>
+            <p>I'm one of the maintainers of <a href="https://github.com/bitcoinfuzz/bitcoinfuzz" target="_blank"
+                    rel="noopener noreferrer">Bitcoinfuzz</a>, a differential fuzzing framework for finding bugs in
+                Bitcoin libraries.</p>
+            <p>I hunt for vulnerabilities in Bitcoin and Lightning Network implementations and have made several
+                responsible disclosures.</p>
+
+            <h2>posts</h2>
+            <ul class="post-list">
+{{items}}
+            </ul>
+        </article>
+    </main>
+
+    <footer>
+        <div class="identity">
+            <div>pgp: <a href="/pubkey.asc">0xD7D17E26F2FC3F3C</a></div>
+            <div>bitcoin: <code><a href="bitcoin:bc1qpjl6hupdmngmnx6wv4hqj2x053t6zuwxhhe8m5">bc1qpjl6hupdmngmnx6wv4hqj2x053t6zuwxhhe8m5</a></code></div>
+            <details class="email-fetch"><summary>email</summary><pre><code>curl -s https://erickcestari.dev/pubkey.asc \
+  | gpg --show-keys --with-colons \
+  | awk -F: '/^uid:/ {print $10}'</code></pre></details>
+        </div>
+        <a title="250KB Club page" href="https://250kb.club/erickcestari-dev">
+            <img alt="badge: proud member of the 250KB Club" src="/250kbclub.png" />
+        </a>
+    </footer>
+</body>
+
+</html>

@@ -45,6 +45,13 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    let home_tmpl = match fs::read_to_string(templates_dir.join("home.html")) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to read templates/home.html: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     let mut posts: Vec<(Post, Option<PathBuf>)> = Vec::new();
     let read_dir = match fs::read_dir(&content_dir) {
@@ -118,6 +125,12 @@ fn main() -> ExitCode {
     let list_html = render_list(&list_tmpl, &bare_posts);
     if let Err(e) = fs::write(out_dir.join("index.html"), list_html) {
         eprintln!("Failed to write blog index: {e}");
+        return ExitCode::FAILURE;
+    }
+
+    let home_html = render_list(&home_tmpl, &bare_posts);
+    if let Err(e) = fs::write(root.join("static/index.html"), home_html) {
+        eprintln!("Failed to write home index: {e}");
         return ExitCode::FAILURE;
     }
 
@@ -456,7 +469,7 @@ fn render_atom(posts: &[&Post]) -> String {
 
 fn render_sitemap(posts: &[&Post]) -> String {
     let mut urls = String::from(
-        "  <url>\n    <loc>https://erickcestari.dev/</loc>\n    <priority>1.0</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/about</loc>\n    <priority>0.8</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/blog</loc>\n    <priority>0.8</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/contact</loc>\n    <priority>0.7</priority>\n  </url>\n",
+        "  <url>\n    <loc>https://erickcestari.dev/</loc>\n    <priority>1.0</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/blog</loc>\n    <priority>0.8</priority>\n  </url>\n",
     );
     for p in posts {
         urls.push_str(&format!(
