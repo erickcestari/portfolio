@@ -4,12 +4,16 @@ use bytes::Bytes;
 use h2::server;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::time::{timeout, Duration};
+use tokio::time::{timeout, Duration, Instant};
 use tokio_rustls::TlsAcceptor;
 
 use crate::{cache::FileCache, handler::StaticFileHandler, Request};
 
 const READ_TIMEOUT: Duration = Duration::from_secs(30);
+// Total time budget to receive the complete request line and headers. Unlike a
+// per-read timeout, this caps the whole header phase so a slowloris client that
+// trickles bytes cannot hold the connection open indefinitely.
+const HEADER_TIMEOUT: Duration = Duration::from_secs(10);
 const H1_MAX_HEADER_SIZE: usize = 8192;
 
 const SECURITY_HEADERS: &str = "\
@@ -287,11 +291,21 @@ impl Featherserve {
     async fn read_h1_headers<S: AsyncReadExt + Unpin>(stream: &mut S) -> Option<Vec<u8>> {
         let mut buf = Vec::with_capacity(4096);
         let mut tmp = [0u8; 1024];
+        let deadline = Instant::now() + HEADER_TIMEOUT;
 
         loop {
-            let n = match timeout(READ_TIMEOUT, stream.read(&mut tmp)).await {
+            // Bound each read by the remaining header budget rather than a
+            // per-read timeout, so the total time to receive headers is capped.
+            let remaining = match deadline.checked_duration_since(Instant::now()) {
+                Some(d) if !d.is_zero() => d,
+                _ => return None,
+            };
+
+            let n = match timeout(remaining, stream.read(&mut tmp)).await {
                 Ok(Ok(n)) if n > 0 => n,
-                _ => return if buf.is_empty() { None } else { Some(buf) },
+                // Budget exceeded or peer stalled/closed before headers were
+                // complete: drop the connection instead of holding it open.
+                _ => return None,
             };
 
             let prev_len = buf.len();
