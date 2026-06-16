@@ -20,7 +20,11 @@ pub fn load_config(cert_path: &str, key_path: &str) -> io::Result<ServerConfig> 
         .with_single_cert(certs, key)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-    config.alpn_protocols = vec![b"h2".to_vec()];
+    // Offer HTTP/1.1 as well as h2: many clients (e.g. RSS fetchers using
+    // undici/node-fetch) connect over TLS speaking HTTP/1.1 and never offer
+    // the "h2" ALPN. Without this they get HTTP/2 framing as a reply and fail
+    // to parse the response. Order matters: h2 is preferred when offered.
+    config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
     Ok(config)
 }
 

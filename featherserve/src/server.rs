@@ -281,7 +281,16 @@ impl Featherserve {
 
         if let Some(acceptor) = tls_acceptor {
             if let Ok(Ok(tls_stream)) = timeout(READ_TIMEOUT, acceptor.accept(stream)).await {
-                Self::serve_h2(tls_stream, cache, alt_svc).await;
+                // Dispatch on the ALPN protocol negotiated during the TLS
+                // handshake. Clients that don't negotiate "h2" (e.g. plain
+                // HTTP/1.1 fetchers) must be served over HTTP/1.1, otherwise
+                // they receive HTTP/2 framing they can't parse.
+                let is_h2 = tls_stream.get_ref().1.alpn_protocol() == Some(b"h2");
+                if is_h2 {
+                    Self::serve_h2(tls_stream, cache, alt_svc).await;
+                } else {
+                    Self::serve_h1(tls_stream, cache, alt_svc).await;
+                }
             }
         } else {
             Self::serve_h1(stream, cache, alt_svc).await;
