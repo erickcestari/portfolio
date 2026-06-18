@@ -469,7 +469,7 @@ fn render_atom(posts: &[&Post]) -> String {
 
 fn render_sitemap(posts: &[&Post]) -> String {
     let mut urls = String::from(
-        "  <url>\n    <loc>https://erickcestari.dev/</loc>\n    <priority>1.0</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/blog</loc>\n    <priority>0.8</priority>\n  </url>\n",
+        "  <url>\n    <loc>https://erickcestari.dev/</loc>\n    <priority>1.0</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/blog</loc>\n    <priority>0.8</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/books</loc>\n    <priority>0.7</priority>\n  </url>\n",
     );
     for p in posts {
         urls.push_str(&format!(

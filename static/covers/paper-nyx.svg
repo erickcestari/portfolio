@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="384" viewBox="0 0 256 384" font-family="Georgia, 'Times New Roman', serif">
+  <rect width="256" height="384" fill="#f3f1ea"/>
+  <rect x="0" y="0" width="256" height="384" fill="none" stroke="#d8d4c6" stroke-width="2"/>
+  <text x="24" y="44" font-family="monospace" font-size="12" letter-spacing="1" fill="#b03b2e">USENIX SEC '21</text>
+  <line x1="24" y1="58" x2="232" y2="58" stroke="#cfcabb" stroke-width="1.5"/>
+  <text x="24" y="124" font-size="42" font-weight="bold" fill="#1a1a1a">Nyx</text>
+  <text x="24" y="170" font-size="15" fill="#33312b">
+    <tspan x="24" dy="0">Greybox</tspan>
+    <tspan x="24" dy="22">Hypervisor Fuzzing</tspan>
+    <tspan x="24" dy="22">using Fast Snapshots</tspan>
+    <tspan x="24" dy="22">and Affine Types</tspan>
+  </text>
+  <line x1="24" y1="318" x2="232" y2="318" stroke="#cfcabb" stroke-width="1.5"/>
+  <text x="24" y="344" font-family="monospace" font-size="10" fill="#6b6760">
+    <tspan x="24" dy="0">Schumilo, Aschermann,</tspan>
+    <tspan x="24" dy="15">Abbasi, Worner, Holz</tspan>
+  </text>
+</svg>
