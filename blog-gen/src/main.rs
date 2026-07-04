@@ -417,9 +417,41 @@ fn split_frontmatter(raw: &str) -> (&str, &str) {
     ("", raw)
 }
 
+/// "2026-07-04" -> "July 4, 2026"; anything unparseable passes through as-is.
+fn humanize_date(iso: &str) -> String {
+    const MONTHS: [&str; 12] = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ];
+    let mut parts = iso.splitn(3, '-');
+    let (Some(year), Some(month), Some(day)) = (parts.next(), parts.next(), parts.next()) else {
+        return iso.to_string();
+    };
+    let month_name = month
+        .parse::<usize>()
+        .ok()
+        .filter(|m| (1..=12).contains(m))
+        .map(|m| MONTHS[m - 1]);
+    match month_name {
+        Some(m) => format!("{} {}, {}", m, day.trim_start_matches('0'), year),
+        None => iso.to_string(),
+    }
+}
+
 fn render_post(tmpl: &str, p: &Post) -> String {
     tmpl.replace("{{title}}", &escape_html(&p.title))
-        .replace("{{date}}", &escape_html(&p.date))
+        .replace("{{date_iso}}", &escape_html(&p.date))
+        .replace("{{date}}", &escape_html(&humanize_date(&p.date)))
         .replace("{{description}}", &escape_html(&p.description))
         .replace("{{slug}}", &p.slug)
         .replace("{{url}}", &format!("{}/blog/{}/", SITE_URL, p.slug))
@@ -428,15 +460,33 @@ fn render_post(tmpl: &str, p: &Post) -> String {
         .replace("{{content}}", &p.html)
 }
 
+/// Posts are sorted newest-first, so runs of equal years are contiguous;
+/// each run opens with a year marker and its own <ul>.
 fn render_list(tmpl: &str, posts: &[&Post]) -> String {
     let mut items = String::new();
+    let mut current_year = "";
     for p in posts {
+        let year = p.date.get(..4).unwrap_or("");
+        if year != current_year {
+            if !current_year.is_empty() {
+                items.push_str("            </ul>\n");
+            }
+            items.push_str(&format!(
+                "            <h3 class=\"year\">{}</h3>\n            <ul class=\"post-list\">\n",
+                escape_html(year)
+            ));
+            current_year = year;
+        }
         items.push_str(&format!(
-            "        <li><time>{}</time> <a href=\"/blog/{}/\">{}</a></li>\n",
-            escape_html(&p.date),
+            "                <li><a href=\"/blog/{}/\">{}</a><time datetime=\"{}\">{}</time></li>\n",
             p.slug,
-            escape_html(&p.title)
+            escape_html(&p.title),
+            escape_html(&p.date),
+            escape_html(&humanize_date(&p.date))
         ));
+    }
+    if !current_year.is_empty() {
+        items.push_str("            </ul>");
     }
     tmpl.replace("{{items}}", items.trim_end())
 }
