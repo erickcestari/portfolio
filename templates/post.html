@@ -29,15 +29,7 @@
 </head>
 
 <body>
-    <a class="skip-link" href="#main-content">Skip to content</a>
-    <header>
-        <nav>
-            <a href="/">Erick Cestari</a>
-            <a href="/blog">Blog</a>
-            <a href="/books">Books</a>
-            <a href="https://github.com/erickcestari" target="_blank" rel="noopener noreferrer">GitHub</a>
-        </nav>
-    </header>
+{{header}}
 
     <main id="main-content">
         <article>
@@ -48,18 +40,7 @@
         </article>
     </main>
 
-    <footer>
-        <div class="identity">
-            <div>pgp: <a href="/pubkey.asc">0xD7D17E26F2FC3F3C</a></div>
-            <div>bitcoin: <code><a href="bitcoin:bc1qxz9x6txpdtq5cs5m2rz2hxtw95du64z259msmh">bc1qxz9x6txpdtq5cs5m2rz2hxtw95du64z259msmh</a></code></div>
-            <details class="email-fetch"><summary>email</summary><pre><code>curl -s https://erickcestari.dev/pubkey.asc \
-  | gpg --show-keys --with-colons \
-  | awk -F: '/^uid:/ {print $10}'</code></pre></details>
-        </div>
-        <a title="250KB Club page" href="https://250kb.club/erickcestari-dev">
-            <img alt="badge: proud member of the 250KB Club" src="/250kbclub.png" />
-        </a>
-    </footer>
+{{footer}}
     <script>
         document.querySelectorAll('article h2[id], article h3[id], article h4[id]').forEach(h => {
             h.addEventListener('click', e => {
