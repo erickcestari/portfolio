@@ -9,3 +9,6 @@ edition = "2021"
 [dependencies]
 featherserve = { path = "featherserve" }
 tokio = { version = "1.48.0", features = ["rt-multi-thread", "macros"] }
+
+[build-dependencies]
+blog-gen = { path = "blog-gen" }
