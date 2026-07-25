@@ -842,41 +842,6 @@ footer {
     font-family: var(--mono);
 }
 
-/* ---- Email fetch <details> ---- */
-.identity .email-fetch {
-    margin-bottom: 0.2rem;
-}
-
-.identity .email-fetch:last-child {
-    margin-bottom: 0;
-}
-
-.email-fetch summary {
-    cursor: pointer;
-    list-style: none;
-    color: var(--muted);
-    display: inline;
-}
-
-.email-fetch summary::-webkit-details-marker {
-    display: none;
-}
-
-.email-fetch summary::after          { content: " [+]"; }
-.email-fetch[open] summary::after    { content: " [-]"; }
-
-.email-fetch pre {
-    margin-top: 0.4rem;
-    background: var(--code-bg);
-    padding: 0.5rem 0.7rem;
-    border-radius: var(--radius-sm);
-    overflow-x: auto;
-    font-size: var(--fs-tag);
-    line-height: 1.5;
-    color: var(--ink-2);
-    white-space: pre;
-}
-
 @media (max-width: 600px) {
     body {
         padding: var(--content-pad-sm);
