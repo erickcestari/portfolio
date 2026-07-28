@@ -21,7 +21,7 @@ blog:
 check:
     cargo +nightly fmt --all -- --check
     cargo check
-    cargo clippy -- -D warnings
+    cargo clippy --workspace --all-targets -- -D warnings
 
 # Delete files: example, target, lockfile
 delete item="examples":
@@ -35,7 +35,7 @@ run:
     cargo run
 
 test:
-    cargo test
+    cargo test --workspace
 
 _delete-target:
     rm -rf target/

@@ -157,6 +157,11 @@ impl FileCache {
         }
     }
 
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+
     fn content_type(filename: &str) -> &'static str {
         match Path::new(filename).extension().and_then(|ext| ext.to_str()) {
             Some("html") => "text/html",
@@ -173,6 +178,214 @@ impl FileCache {
             Some("asc" | "txt") => "text/plain; charset=utf-8",
             Some("xml") => "application/xml",
             _ => "application/octet-stream",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Read;
+    use tempfile::TempDir;
+
+    /// Build a static dir from (relative path, contents) pairs.
+    fn static_dir(files: &[(&str, &[u8])]) -> TempDir {
+        let dir = TempDir::new().unwrap();
+        for (rel, contents) in files {
+            let path = dir.path().join(rel);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(&path, contents).unwrap();
+        }
+        dir
+    }
+
+    fn load(files: &[(&str, &[u8])]) -> (TempDir, FileCache) {
+        let dir = static_dir(files);
+        let cache = FileCache::load(dir.path().to_str().unwrap());
+        (dir, cache)
+    }
+
+    fn gunzip(data: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        flate2::read::GzDecoder::new(data)
+            .read_to_end(&mut out)
+            .unwrap();
+        out
+    }
+
+    #[test]
+    fn missing_static_dir_yields_empty_cache() {
+        let cache = FileCache::load("/nonexistent/jatai/static/dir");
+        assert_eq!(cache.len(), 0);
+        assert!(cache.get("/").is_none());
+        assert!(cache.get_not_found().is_none());
+    }
+
+    #[test]
+    fn serves_file_at_its_literal_path() {
+        let (_dir, cache) = load(&[("style.css", b"body{}")]);
+        let entry = cache.get("/style.css").unwrap();
+        assert_eq!(&*entry.body, b"body{}");
+        assert_eq!(entry.content_type, "text/css");
+    }
+
+    #[test]
+    fn root_index_maps_to_slash() {
+        let (_dir, cache) = load(&[("index.html", b"<h1>home</h1>")]);
+        assert_eq!(&*cache.get("/").unwrap().body, b"<h1>home</h1>");
+        assert_eq!(&*cache.get("/index.html").unwrap().body, b"<h1>home</h1>");
+    }
+
+    #[test]
+    fn nested_index_maps_to_dir_with_and_without_trailing_slash() {
+        let (_dir, cache) = load(&[("blog/index.html", b"posts")]);
+        for path in ["/blog", "/blog/", "/blog/index.html"] {
+            assert_eq!(&*cache.get(path).unwrap().body, b"posts", "path {}", path);
+        }
+    }
+
+    #[test]
+    fn html_files_are_also_served_without_extension() {
+        let (_dir, cache) = load(&[("about.html", b"about")]);
+        assert_eq!(&*cache.get("/about").unwrap().body, b"about");
+        assert_eq!(&*cache.get("/about.html").unwrap().body, b"about");
+    }
+
+    #[test]
+    fn nested_html_keeps_its_directory_prefix() {
+        let (_dir, cache) = load(&[("blog/post.html", b"post")]);
+        assert_eq!(&*cache.get("/blog/post").unwrap().body, b"post");
+        assert!(cache.get("/post").is_none());
+    }
+
+    #[test]
+    fn unknown_paths_are_absent() {
+        let (_dir, cache) = load(&[("index.html", b"home")]);
+        assert!(cache.get("/missing").is_none());
+        assert!(cache.get("").is_none());
+    }
+
+    #[test]
+    fn lookup_is_case_sensitive() {
+        let (_dir, cache) = load(&[("About.html", b"about")]);
+        assert!(cache.get("/About").is_some());
+        assert!(cache.get("/about").is_none());
+    }
+
+    #[test]
+    fn not_found_page_is_loaded_separately() {
+        let (_dir, cache) = load(&[("404.html", b"missing")]);
+        assert_eq!(&*cache.get_not_found().unwrap().body, b"missing");
+    }
+
+    #[test]
+    fn not_found_page_is_absent_when_file_is_missing() {
+        let (_dir, cache) = load(&[("index.html", b"home")]);
+        assert!(cache.get_not_found().is_none());
+    }
+
+    #[test]
+    fn text_files_are_gzipped_and_round_trip() {
+        let body = "hello ".repeat(200);
+        let (_dir, cache) = load(&[("index.html", body.as_bytes())]);
+        let entry = cache.get("/").unwrap();
+        let gz = entry.body_gzip.as_ref().expect("html should be gzipped");
+        assert_eq!(gunzip(gz), body.as_bytes());
+        assert!(
+            gz.len() < entry.body.len(),
+            "compression should shrink text"
+        );
+    }
+
+    #[test]
+    fn binary_files_are_not_gzipped() {
+        let (_dir, cache) = load(&[("logo.png", &[0x89, b'P', b'N', b'G'])]);
+        assert!(cache.get("/logo.png").unwrap().body_gzip.is_none());
+    }
+
+    #[test]
+    fn assets_and_html_carry_cache_control_but_unknown_types_do_not() {
+        let (_dir, cache) = load(&[
+            ("index.html", b"home"),
+            ("app.js", b"1"),
+            ("data.bin", b"\x00"),
+        ]);
+        let expected = Some("public, max-age=300, must-revalidate");
+        assert_eq!(cache.get("/").unwrap().cache_control, expected);
+        assert_eq!(cache.get("/app.js").unwrap().cache_control, expected);
+        assert_eq!(cache.get("/data.bin").unwrap().cache_control, None);
+    }
+
+    #[test]
+    fn symlinks_pointing_outside_the_static_dir_are_skipped() {
+        let outside = TempDir::new().unwrap();
+        let secret = outside.path().join("secret.txt");
+        fs::write(&secret, b"top secret").unwrap();
+
+        let dir = static_dir(&[("index.html", b"home")]);
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&secret, dir.path().join("leak.txt")).unwrap();
+
+        let cache = FileCache::load(dir.path().to_str().unwrap());
+        assert!(cache.get("/leak.txt").is_none());
+        assert!(cache.get("/").is_some());
+    }
+
+    #[test]
+    fn broken_symlinks_are_skipped_without_failing_the_load() {
+        let dir = static_dir(&[("index.html", b"home")]);
+        #[cfg(unix)]
+        std::os::unix::fs::symlink("/nonexistent/target", dir.path().join("dangling.html"))
+            .unwrap();
+
+        let cache = FileCache::load(dir.path().to_str().unwrap());
+        assert!(cache.get("/dangling.html").is_none());
+        assert!(cache.get("/").is_some());
+    }
+
+    #[test]
+    fn content_type_covers_every_known_extension() {
+        let cases = [
+            ("a.html", "text/html"),
+            ("a.css", "text/css"),
+            ("a.js", "application/javascript"),
+            ("a.json", "application/json"),
+            ("a.svg", "image/svg+xml"),
+            ("a.png", "image/png"),
+            ("a.jpg", "image/jpeg"),
+            ("a.jpeg", "image/jpeg"),
+            ("a.webp", "image/webp"),
+            ("a.ico", "image/x-icon"),
+            ("a.woff", "font/woff"),
+            ("a.woff2", "font/woff2"),
+            ("a.txt", "text/plain; charset=utf-8"),
+            ("a.asc", "text/plain; charset=utf-8"),
+            ("a.xml", "application/xml"),
+            ("a.bin", "application/octet-stream"),
+            ("noextension", "application/octet-stream"),
+        ];
+        for (name, expected) in cases {
+            assert_eq!(FileCache::content_type(name), expected, "for {}", name);
+        }
+    }
+
+    #[test]
+    fn compressible_types_are_exactly_the_text_like_ones() {
+        for ct in [
+            "text/html",
+            "text/css",
+            "text/plain; charset=utf-8",
+            "application/javascript",
+            "application/json",
+            "application/xml",
+            "image/svg+xml",
+        ] {
+            assert!(FileCache::is_compressible(ct), "{} should compress", ct);
+        }
+        for ct in ["image/png", "font/woff2", "application/octet-stream"] {
+            assert!(!FileCache::is_compressible(ct), "{} should not", ct);
         }
     }
 }
