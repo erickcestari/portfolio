@@ -16,6 +16,8 @@ const READ_TIMEOUT: Duration = Duration::from_secs(30);
 const HEADER_TIMEOUT: Duration = Duration::from_secs(10);
 const H1_MAX_HEADER_SIZE: usize = 8192;
 
+const SERVER_AGENT: &str = "jatai";
+
 const SECURITY_HEADERS: &str = "\
 X-Content-Type-Options: nosniff\r\n\
 X-Frame-Options: DENY\r\n\
@@ -87,21 +89,21 @@ impl Listener {
     }
 }
 
-pub struct Featherserve {
+pub struct Jatai {
     listeners: Vec<Listener>,
     quic_endpoint: Option<quinn::Endpoint>,
     h3_port: Option<u16>,
     static_dir: String,
 }
 
-pub struct FeatherserveBuilder {
+pub struct JataiBuilder {
     static_dir: String,
     http_bind: Option<String>,
     https: Option<(String, String, String)>, // (bind, cert_path, key_path)
     enable_h3: bool,
 }
 
-impl FeatherserveBuilder {
+impl JataiBuilder {
     pub fn new() -> Self {
         Self {
             static_dir: "pages".to_string(),
@@ -136,7 +138,7 @@ impl FeatherserveBuilder {
         self
     }
 
-    pub async fn build(self) -> io::Result<Featherserve> {
+    pub async fn build(self) -> io::Result<Jatai> {
         let mut listeners = Vec::new();
         let mut quic_endpoint = None;
         let mut h3_port = None;
@@ -166,7 +168,7 @@ impl FeatherserveBuilder {
             }
         }
 
-        Ok(Featherserve {
+        Ok(Jatai {
             listeners,
             quic_endpoint,
             h3_port,
@@ -175,19 +177,19 @@ impl FeatherserveBuilder {
     }
 }
 
-impl Default for FeatherserveBuilder {
+impl Default for JataiBuilder {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Featherserve {
-    pub fn builder() -> FeatherserveBuilder {
-        FeatherserveBuilder::new()
+impl Jatai {
+    pub fn builder() -> JataiBuilder {
+        JataiBuilder::new()
     }
 
-    pub fn with_static_dir(self, dir: impl Into<String>) -> FeatherserveBuilder {
-        FeatherserveBuilder::new().with_static_dir(dir)
+    pub fn with_static_dir(self, dir: impl Into<String>) -> JataiBuilder {
+        JataiBuilder::new().with_static_dir(dir)
     }
 
     pub async fn run(self) {
@@ -204,17 +206,14 @@ impl Featherserve {
 
         for listener in &self.listeners {
             println!(
-                "Featherserve listening on {}://{}",
+                "Jatai listening on {}://{}",
                 listener.protocol(),
                 listener.tcp.local_addr().unwrap()
             );
         }
 
         if let Some(ref endpoint) = self.quic_endpoint {
-            println!(
-                "Featherserve listening on h3://{}",
-                endpoint.local_addr().unwrap()
-            );
+            println!("Jatai listening on h3://{}", endpoint.local_addr().unwrap());
         }
 
         let mut handles = Vec::new();
@@ -376,8 +375,9 @@ impl Featherserve {
         };
 
         let header = format!(
-            "HTTP/1.1 {}\r\nContent-Length: {}\r\nContent-Type: {}\r\n{}{}{}{}\r\n",
+            "HTTP/1.1 {}\r\nServer: {}\r\nContent-Length: {}\r\nContent-Type: {}\r\n{}{}{}{}\r\n",
             status_text,
+            SERVER_AGENT,
             response.body.len(),
             response.content_type,
             encoding_header,
@@ -431,6 +431,7 @@ impl Featherserve {
 
         let mut builder = http::Response::builder().status(response.status);
 
+        builder = builder.header("server", SERVER_AGENT);
         builder = builder.header("content-type", response.content_type);
         builder = builder.header("content-length", response.body.len());
         builder = builder.header("x-content-type-options", "nosniff");
@@ -502,6 +503,7 @@ impl Featherserve {
 
         let mut builder = http::Response::builder().status(response.status);
 
+        builder = builder.header("server", SERVER_AGENT);
         builder = builder.header("content-type", response.content_type);
         builder = builder.header("content-length", response.body.len());
         builder = builder.header("x-content-type-options", "nosniff");
@@ -530,9 +532,9 @@ impl Featherserve {
     }
 }
 
-impl From<Config> for FeatherserveBuilder {
+impl From<Config> for JataiBuilder {
     fn from(config: Config) -> Self {
-        let mut builder = FeatherserveBuilder::new().with_static_dir(&config.static_dir);
+        let mut builder = JataiBuilder::new().with_static_dir(&config.static_dir);
         builder = builder.bind_http(&config.http_bind);
 
         if let Some(https) = config.https {
