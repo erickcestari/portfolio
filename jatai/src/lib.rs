@@ -1,5 +1,6 @@
 mod cache;
 mod handler;
+mod honeypot;
 mod request;
 mod response;
 mod server;

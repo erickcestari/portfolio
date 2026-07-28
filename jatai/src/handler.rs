@@ -15,8 +15,8 @@ impl StaticFileHandler {
         println!("Request: {}", request.path.escape_default());
 
         // Check the honeypot first: a matching path never reaches the cache.
-        if let Some(target) = Self::honeypot(&request.path) {
-            return Response::forbidden(&target);
+        if let Some(bait) = crate::honeypot::bait_for(&request.path) {
+            return Response::honeypot(bait);
         }
 
         if let Some(cached) = self.cache.get(&request.path) {
@@ -52,36 +52,6 @@ impl StaticFileHandler {
         } else {
             response
         }
-    }
-
-    /// Decide whether a path is bait for the honeypot, returning the normalised
-    /// form the bait should be chosen from.
-    ///
-    /// Normalisation is deliberately more permissive than serving: extra layers
-    /// of percent-encoding, backslash separators and capitals are all ways of
-    /// writing the same attack, and matching the literal path would let each of
-    /// them through. Lookups still use the literal path, so a real file is never
-    /// reached by a normalised one.
-    fn honeypot(path: &str) -> Option<String> {
-        let candidate = crate::request::fully_decode(path)
-            .replace('\\', "/")
-            .to_lowercase();
-
-        let matched = candidate.contains("etc/passwd")
-            || candidate.contains("etc/shadow")
-            || candidate.contains(".env")
-            || candidate.contains("id_rsa")
-            || candidate.contains("ssh")
-            || candidate.contains("wp-config")
-            || candidate.contains("proc/self")
-            || candidate.contains("flag")
-            || candidate.contains("config")
-            || candidate.contains("aws")
-            || candidate.contains("docker")
-            || candidate.contains(".php")
-            || candidate.contains("../");
-
-        matched.then_some(candidate)
     }
 }
 
@@ -182,94 +152,13 @@ mod tests {
     }
 
     #[test]
-    fn honeypot_paths_are_intercepted_before_the_cache() {
-        // A real file whose name matches a bait pattern must still get bait,
-        // never its contents: the honeypot check runs first by design.
+    fn the_honeypot_is_checked_before_the_cache() {
+        // A real file whose name matches a trap must still get bait, never its
+        // contents: the honeypot runs first by design.
         let (_dir, handler) = handler(&[("config.html", b"my real config page")]);
         let res = handler.handle(&request("/config.html", false));
-        assert_eq!(res.content_type, "text/plain");
         assert!(!res.body.starts_with(b"my real"));
-    }
-
-    #[test]
-    fn every_bait_pattern_is_detected() {
-        let attacks = [
-            "/etc/passwd",
-            "/etc/shadow",
-            "/.env",
-            "/.env.production",
-            "/home/user/.ssh/id_rsa",
-            "/wp-config.php",
-            "/proc/self/environ",
-            "/flag.txt",
-            "/app/config.json",
-            "/.aws/credentials",
-            "/docker-compose.yml",
-            "/index.php",
-            "/../../etc/hosts",
-        ];
-        for attack in attacks {
-            assert!(
-                StaticFileHandler::honeypot(attack).is_some(),
-                "{} should land in the honeypot",
-                attack
-            );
-        }
-    }
-
-    #[test]
-    fn ordinary_paths_are_not_treated_as_attacks() {
-        let benign = [
-            "/",
-            "/index.html",
-            "/about",
-            "/blog/my-post",
-            "/style.css",
-            "/img/photo.png",
-            "/favicon.ico",
-        ];
-        for path in benign {
-            assert!(
-                StaticFileHandler::honeypot(path).is_none(),
-                "{} should be served normally",
-                path
-            );
-        }
-    }
-
-    #[test]
-    fn traversal_is_caught_however_many_times_it_is_encoded() {
-        // parse_h1 decodes once, so anything beyond a single layer arrives here
-        // still encoded. The honeypot keeps decoding until the path stops hiding.
-        for attack in [
-            "/../etc/hosts",
-            "/%2e%2e/etc/hosts",
-            "/%252e%252e/etc/hosts",
-            "/%25252e%25252e/etc/hosts",
-        ] {
-            assert!(
-                StaticFileHandler::honeypot(attack).is_some(),
-                "{} should be caught",
-                attack
-            );
-        }
-    }
-
-    #[test]
-    fn attacks_are_caught_whatever_their_capitalisation() {
-        for attack in ["/ETC/PASSWD", "/WP-Config.php", "/.AWS/credentials"] {
-            assert!(
-                StaticFileHandler::honeypot(attack).is_some(),
-                "{} should be caught",
-                attack
-            );
-        }
-    }
-
-    #[test]
-    fn backslash_traversal_is_caught_too() {
-        assert!(StaticFileHandler::honeypot("/..\\..\\windows\\win.ini").is_some());
-        assert!(StaticFileHandler::honeypot("/%2e%2e%5cetc%5cpasswd").is_some());
+        assert!(String::from_utf8_lossy(&res.body).contains("[database]"));
     }
 
     #[test]
@@ -282,18 +171,25 @@ mod tests {
         let encoded = handler.handle(&request("/%252e%252e/etc%252fpasswd", false));
 
         assert_eq!(plain.status, 200);
-        assert_eq!(encoded.status, 200);
         assert_eq!(encoded.body, plain.body);
         assert!(encoded.body.starts_with(b"root:x:0:0:"));
     }
 
     #[test]
     fn normalisation_never_redirects_a_lookup_to_another_file() {
-        // "%2e" decodes to "." only for detection; the cache is still keyed by
-        // the literal request path, so no encoded path can reach a real file.
+        // "%2561" decodes to "a" only for the honeypot; the cache is still keyed
+        // by the literal request path, so no encoded path reaches a real file.
         let (_dir, handler) = handler(&[("about.html", b"about"), ("404.html", b"missing")]);
         let res = handler.handle(&request("/%2561bout", false));
         assert_eq!(res.status, 404);
         assert_eq!(res.body, b"missing");
+    }
+
+    #[test]
+    fn ordinary_paths_reach_the_cache_untouched() {
+        let (_dir, handler) = handler(&[("about.html", b"about"), ("404.html", b"missing")]);
+        let res = handler.handle(&request("/about", false));
+        assert_eq!(res.status, 200);
+        assert_eq!(res.body, b"about");
     }
 }

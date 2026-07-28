@@ -570,7 +570,27 @@ async fn feeds_bait_over_http2_too() {
     let reply = h2_get(server.https(), "/wp-config.php", false).await;
 
     assert_eq!(reply.parts.status, 200);
-    assert!(String::from_utf8_lossy(&reply.body).contains("define('DB_PASSWORD'"));
+    assert!(String::from_utf8_lossy(&reply.body).contains("define( 'DB_PASSWORD'"));
+}
+
+#[tokio::test]
+async fn bait_carries_the_content_type_of_the_file_it_fakes() {
+    // A scanner that asks for a login page and gets text/plain has learned it
+    // is being lied to. Each trap answers in the type its file would have.
+    let server = TestServer::start(true, false).await;
+
+    for (path, expected) in [
+        ("/etc/passwd", "text/plain"),
+        ("/wp-login.php", "text/html"),
+        ("/actuator/env", "application/json"),
+    ] {
+        let reply = h2_get(server.https(), path, false).await;
+        assert_eq!(
+            reply.parts.headers["content-type"], expected,
+            "for {}",
+            path
+        );
+    }
 }
 
 // -- HTTP/3 -----------------------------------------------------------------
@@ -636,4 +656,46 @@ async fn serves_pages_over_http3() {
     drop(send_request);
     endpoint.wait_idle().await;
     let _ = driving.await;
+}
+
+#[tokio::test]
+async fn a_page_whose_name_mentions_a_trapped_word_is_still_served() {
+    // Segment matching, end to end: the honeypot must not swallow an article
+    // just because its slug contains "aws" or "config".
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("404.html"), b"<h1>not found</h1>").unwrap();
+    fs::write(
+        dir.path().join("aws-vs-bare-metal.html"),
+        b"<h1>the article</h1>",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("config-driven-design.html"),
+        b"<h1>also real</h1>",
+    )
+    .unwrap();
+
+    let server = JataiBuilder::new()
+        .with_static_dir(dir.path().to_str().unwrap())
+        .bind_http("127.0.0.1:0")
+        .build()
+        .await
+        .unwrap();
+    let addr = server.tcp_addrs()[0];
+    tokio::spawn(server.run());
+
+    assert_eq!(
+        get(addr, "/aws-vs-bare-metal").await.body,
+        b"<h1>the article</h1>"
+    );
+    assert_eq!(
+        get(addr, "/config-driven-design").await.body,
+        b"<h1>also real</h1>"
+    );
+
+    // The real attack paths still get bait.
+    assert!(get(addr, "/.aws/credentials")
+        .await
+        .body
+        .starts_with(b"[default]"));
 }
