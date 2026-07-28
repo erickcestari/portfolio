@@ -1,4 +1,4 @@
-use std::{env, io, sync::Arc};
+use std::{env, io, net::SocketAddr, sync::Arc};
 
 use bytes::Bytes;
 use h2::server;
@@ -260,12 +260,12 @@ impl Jatai {
     async fn accept_loop(listener: Listener, cache: Arc<FileCache>, alt_svc: Option<Arc<str>>) {
         loop {
             match listener.tcp.accept().await {
-                Ok((stream, _)) => {
+                Ok((stream, peer)) => {
                     let cache = Arc::clone(&cache);
                     let tls_acceptor = listener.tls_acceptor.clone();
                     let alt_svc = alt_svc.clone();
                     tokio::spawn(async move {
-                        Self::handle_connection(stream, tls_acceptor, cache, alt_svc).await;
+                        Self::handle_connection(stream, peer, tls_acceptor, cache, alt_svc).await;
                     });
                 }
                 Err(e) => eprintln!("Connection failed: {}", e),
@@ -284,13 +284,15 @@ impl Jatai {
                         return;
                     }
                 };
-                Self::serve_h3(connection, cache).await;
+                let peer = connection.remote_address();
+                Self::serve_h3(connection, cache, peer).await;
             });
         }
     }
 
     async fn handle_connection(
         stream: TcpStream,
+        peer: SocketAddr,
         tls_acceptor: Option<TlsAcceptor>,
         cache: Arc<FileCache>,
         alt_svc: Option<Arc<str>>,
@@ -305,13 +307,13 @@ impl Jatai {
                 // they receive HTTP/2 framing they can't parse.
                 let is_h2 = tls_stream.get_ref().1.alpn_protocol() == Some(b"h2");
                 if is_h2 {
-                    Self::serve_h2(tls_stream, cache, alt_svc).await;
+                    Self::serve_h2(tls_stream, cache, peer, alt_svc).await;
                 } else {
-                    Self::serve_h1(tls_stream, cache, alt_svc).await;
+                    Self::serve_h1(tls_stream, cache, peer, alt_svc).await;
                 }
             }
         } else {
-            Self::serve_h1(stream, cache, alt_svc).await;
+            Self::serve_h1(stream, cache, peer, alt_svc).await;
         }
     }
 
@@ -350,8 +352,12 @@ impl Jatai {
         }
     }
 
-    async fn serve_h1<S>(mut stream: S, cache: Arc<FileCache>, alt_svc: Option<Arc<str>>)
-    where
+    async fn serve_h1<S>(
+        mut stream: S,
+        cache: Arc<FileCache>,
+        peer: SocketAddr,
+        alt_svc: Option<Arc<str>>,
+    ) where
         S: AsyncReadExt + AsyncWriteExt + Unpin,
     {
         let buf = match Self::read_h1_headers(&mut stream).await {
@@ -364,7 +370,7 @@ impl Jatai {
             Err(_) => return,
         };
 
-        let Some(request) = Request::parse_h1(request_str) else {
+        let Some(request) = Request::parse_h1(request_str, peer) else {
             return;
         };
 
@@ -394,7 +400,7 @@ impl Jatai {
         };
 
         let header = format!(
-            "HTTP/1.1 {}\r\nServer: {}\r\nContent-Length: {}\r\nContent-Type: {}\r\n{}{}{}{}\r\n",
+            "HTTP/1.1 {}\r\nServer: {}\r\nConnection: close\r\nContent-Length: {}\r\nContent-Type: {}\r\n{}{}{}{}\r\n",
             status_text,
             SERVER_AGENT,
             response.body.len(),
@@ -413,7 +419,7 @@ impl Jatai {
         let _ = stream.shutdown().await;
     }
 
-    async fn serve_h2<S>(io: S, cache: Arc<FileCache>, alt_svc: Option<Arc<str>>)
+    async fn serve_h2<S>(io: S, cache: Arc<FileCache>, peer: SocketAddr, alt_svc: Option<Arc<str>>)
     where
         S: AsyncRead + AsyncWrite + Unpin,
     {
@@ -437,7 +443,7 @@ impl Jatai {
             let cache = Arc::clone(&cache);
             let alt_svc = alt_svc.clone();
             tokio::spawn(async move {
-                Self::handle_h2_request(request, respond, cache, alt_svc);
+                Self::handle_h2_request(request, respond, cache, peer, alt_svc);
             });
         }
     }
@@ -446,9 +452,10 @@ impl Jatai {
         request: http::Request<h2::RecvStream>,
         mut respond: server::SendResponse<Bytes>,
         cache: Arc<FileCache>,
+        peer: SocketAddr,
         alt_svc: Option<Arc<str>>,
     ) {
-        let req = Request::from_h2(&request);
+        let req = Request::from_h2(&request, peer);
         let handler = StaticFileHandler::new(cache);
         let response = handler.handle(&req);
 
@@ -486,7 +493,7 @@ impl Jatai {
         }
     }
 
-    async fn serve_h3(conn: quinn::Connection, cache: Arc<FileCache>) {
+    async fn serve_h3(conn: quinn::Connection, cache: Arc<FileCache>, peer: SocketAddr) {
         let mut h3_conn: h3::server::Connection<h3_quinn::Connection, Bytes> =
             match h3::server::Connection::new(h3_quinn::Connection::new(conn)).await {
                 Ok(c) => c,
@@ -503,7 +510,7 @@ impl Jatai {
                     tokio::spawn(async move {
                         match resolver.resolve_request().await {
                             Ok((req, stream)) => {
-                                Self::handle_h3_request(req, stream, cache).await;
+                                Self::handle_h3_request(req, stream, cache, peer).await;
                             }
                             Err(e) => eprintln!("H3 request error: {}", e),
                         }
@@ -519,8 +526,9 @@ impl Jatai {
         request: http::Request<()>,
         mut stream: h3::server::RequestStream<h3_quinn::BidiStream<Bytes>, Bytes>,
         cache: Arc<FileCache>,
+        peer: SocketAddr,
     ) {
-        let req = Request::from_h2(&request);
+        let req = Request::from_h2(&request, peer);
         let handler = StaticFileHandler::new(cache);
         let response = handler.handle(&req);
 
@@ -580,6 +588,11 @@ mod tests {
 
     use super::*;
 
+    /// Stand-in client address for the in-memory pipes, which have no peer.
+    fn test_peer() -> SocketAddr {
+        "203.0.113.7:54321".parse().unwrap()
+    }
+
     fn cache_of(files: &[(&str, &[u8])]) -> (TempDir, Arc<FileCache>) {
         let dir = TempDir::new().unwrap();
         for (rel, contents) in files {
@@ -599,7 +612,7 @@ mod tests {
         let (_dir, cache) = cache_of(files);
         let (mut client, server) = duplex(64 * 1024);
 
-        let serving = tokio::spawn(Jatai::serve_h1(server, cache, alt_svc));
+        let serving = tokio::spawn(Jatai::serve_h1(server, cache, test_peer(), alt_svc));
 
         client.write_all(request.as_bytes()).await.unwrap();
         serving.await.unwrap();
@@ -634,6 +647,7 @@ mod tests {
 
         assert!(head.starts_with("HTTP/1.1 200 OK\r\n"));
         assert!(head.contains("Server: jatai\r\n"));
+        assert!(head.contains("Connection: close\r\n"));
         assert!(head.contains("Content-Type: text/html\r\n"));
         assert!(head.contains("Content-Length: 13\r\n"));
         assert!(head.contains("X-Content-Type-Options: nosniff\r\n"));
@@ -700,6 +714,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn h1_announces_that_it_closes_after_answering() {
+        // The server handles one request per connection. HTTP/1.1 assumes the
+        // opposite, so without this header the client waits for a second
+        // response that never comes, then pays a reconnect to find out.
+        for request in [
+            "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            "GET /missing HTTP/1.1\r\n\r\n",
+            "GET /.env HTTP/1.1\r\n\r\n",
+        ] {
+            let raw = h1_exchange(&[("index.html", b"home")], request, None).await;
+            let (head, _) = split_response(&raw);
+            assert!(
+                head.contains("Connection: close\r\n"),
+                "missing close for {:?}",
+                request
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn h1_omits_alt_svc_when_h3_is_disabled() {
         let raw = h1_exchange(&[("index.html", b"home")], "GET / HTTP/1.1\r\n\r\n", None).await;
         let (head, _) = split_response(&raw);
@@ -731,7 +765,7 @@ mod tests {
         let (_dir, cache) = cache_of(&[("index.html", b"home")]);
         let (mut client, server) = duplex(1024);
 
-        let serving = tokio::spawn(Jatai::serve_h1(server, cache, None));
+        let serving = tokio::spawn(Jatai::serve_h1(server, cache, test_peer(), None));
         client
             .write_all(b"GET /\xff\xfe HTTP/1.1\r\n\r\n")
             .await

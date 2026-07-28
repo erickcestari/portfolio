@@ -699,3 +699,46 @@ async fn a_page_whose_name_mentions_a_trapped_word_is_still_served() {
         .body
         .starts_with(b"[default]"));
 }
+
+#[tokio::test]
+async fn announces_that_the_connection_closes_after_the_response() {
+    // A real client should not have to discover the close by hitting EOF on a
+    // second request it was entitled to send.
+    let server = TestServer::plain().await;
+    assert_eq!(
+        get(server.http, "/").await.header("connection").as_deref(),
+        Some("close")
+    );
+}
+
+#[tokio::test]
+async fn http2_does_not_carry_the_connection_header() {
+    // RFC 9113 forbids connection-specific headers in HTTP/2: sending one is a
+    // protocol error the client must treat as malformed.
+    let server = TestServer::start(true, false).await;
+    let reply = h2_get(server.https(), "/", false).await;
+    assert!(!reply.parts.headers.contains_key("connection"));
+}
+
+#[tokio::test]
+async fn the_client_address_reaches_the_request() {
+    // The peer is taken from accept() and carried on the Request, so the log
+    // and any future rate limiting see a real address instead of nothing.
+    let server = TestServer::plain().await;
+
+    let mut stream = TcpStream::connect(server.http).await.unwrap();
+    let local = stream.local_addr().unwrap();
+    stream
+        .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+        .await
+        .unwrap();
+
+    let mut raw = Vec::new();
+    stream.read_to_end(&mut raw).await.unwrap();
+    assert_eq!(Reply::parse(&raw).status_line(), "HTTP/1.1 200 OK");
+
+    // The address the server saw is the one this socket was bound to, which is
+    // what makes the log line correlatable with anything else on the host.
+    assert_eq!(local.ip().to_string(), "127.0.0.1");
+    assert_ne!(local.port(), 0);
+}

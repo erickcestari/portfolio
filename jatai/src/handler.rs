@@ -6,22 +6,38 @@ pub struct StaticFileHandler {
     cache: Arc<FileCache>,
 }
 
+/// One line per request: who asked, what they got, what they asked for.
+///
+/// The outcome comes before the path so `honeypot` hits group together under
+/// `sort`, and the path is escaped because it is attacker-controlled and would
+/// otherwise be able to write control characters into the log.
+fn log(request: &Request, outcome: &str) {
+    println!(
+        "{} {} {}",
+        request.peer,
+        outcome,
+        request.path.escape_default()
+    );
+}
+
 impl StaticFileHandler {
     pub fn new(cache: Arc<FileCache>) -> Self {
         Self { cache }
     }
 
     pub fn handle(&self, request: &Request) -> Response {
-        println!("Request: {}", request.path.escape_default());
-
         // Check the honeypot first: a matching path never reaches the cache.
         if let Some(bait) = crate::honeypot::bait_for(&request.path) {
+            log(request, "honeypot");
             return Response::honeypot(bait);
         }
 
         if let Some(cached) = self.cache.get(&request.path) {
+            log(request, "200");
             return Self::build_response(cached, request.accepts_gzip, true);
         }
+
+        log(request, "404");
 
         if let Some(not_found) = self.cache.get_not_found() {
             return Self::build_response(not_found, request.accepts_gzip, false);
@@ -80,6 +96,7 @@ mod tests {
         Request {
             path: path.to_string(),
             accepts_gzip,
+            peer: "203.0.113.7:54321".parse().unwrap(),
         }
     }
 

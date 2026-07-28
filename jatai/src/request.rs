@@ -1,20 +1,30 @@
+use std::net::SocketAddr;
+
 pub struct Request {
     pub path: String,
     pub accepts_gzip: bool,
+    /// Where the request came from. Carried on the request rather than read
+    /// back off the socket so every protocol reports the same thing, and so
+    /// the value survives into the log line and any future rate limiting.
+    pub peer: SocketAddr,
 }
 
 impl Request {
-    pub fn parse_h1(buf: &str) -> Option<Self> {
+    pub fn parse_h1(buf: &str, peer: SocketAddr) -> Option<Self> {
         let mut lines = buf.lines();
         let path = url_decode(lines.next()?.split_whitespace().nth(1)?);
         let accepts_gzip = lines.any(|line| {
             line.to_lowercase().starts_with("accept-encoding:")
                 && line.to_lowercase().contains("gzip")
         });
-        Some(Self { path, accepts_gzip })
+        Some(Self {
+            path,
+            accepts_gzip,
+            peer,
+        })
     }
 
-    pub fn from_h2<T>(req: &http::Request<T>) -> Self {
+    pub fn from_h2<T>(req: &http::Request<T>, peer: SocketAddr) -> Self {
         let path = url_decode(req.uri().path());
         let accepts_gzip = req
             .headers()
@@ -22,7 +32,11 @@ impl Request {
             .and_then(|v| v.to_str().ok())
             .map(|v| v.to_lowercase().contains("gzip"))
             .unwrap_or(false);
-        Self { path, accepts_gzip }
+        Self {
+            path,
+            accepts_gzip,
+            peer,
+        }
     }
 }
 
@@ -76,8 +90,13 @@ fn hex_val(b: u8) -> Option<u8> {
 mod tests {
     use super::*;
 
+    /// Requests in these tests all come from the same made-up client.
+    fn peer() -> SocketAddr {
+        "203.0.113.7:54321".parse().unwrap()
+    }
+
     fn h1(raw: &str) -> Option<Request> {
-        Request::parse_h1(raw)
+        Request::parse_h1(raw, peer())
     }
 
     #[test]
@@ -197,7 +216,7 @@ mod tests {
             .uri("https://example.com/a%20b?q=1")
             .body(())
             .unwrap();
-        let parsed = Request::from_h2(&req);
+        let parsed = Request::from_h2(&req, peer());
         assert_eq!(parsed.path, "/a b");
         assert!(!parsed.accepts_gzip);
     }
@@ -209,12 +228,12 @@ mod tests {
             .header("accept-encoding", "GZIP, br")
             .body(())
             .unwrap();
-        assert!(Request::from_h2(&req).accepts_gzip);
+        assert!(Request::from_h2(&req, peer()).accepts_gzip);
     }
 
     #[test]
     fn h2_request_without_accept_encoding_rejects_gzip() {
         let req = http::Request::builder().uri("/").body(()).unwrap();
-        assert!(!Request::from_h2(&req).accepts_gzip);
+        assert!(!Request::from_h2(&req, peer()).accepts_gzip);
     }
 }
