@@ -239,3 +239,135 @@ Better luck next time, script kiddie.
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bait(path: &str) -> String {
+        String::from_utf8(Response::forbidden(path).body).unwrap()
+    }
+
+    #[test]
+    fn ok_response_carries_status_and_metadata() {
+        let res = Response::ok(b"hi".to_vec(), "text/html", true);
+        assert_eq!(res.status, 200);
+        assert_eq!(res.content_type, "text/html");
+        assert_eq!(res.body, b"hi");
+        assert!(res.gzip);
+        assert_eq!(res.cache_control, None);
+    }
+
+    #[test]
+    fn not_found_response_uses_status_404() {
+        let res = Response::not_found(b"gone".to_vec(), "text/html", false);
+        assert_eq!(res.status, 404);
+        assert!(!res.gzip);
+    }
+
+    #[test]
+    fn with_cache_control_sets_the_header_value() {
+        let res = Response::ok(b"x".to_vec(), "text/css", false).with_cache_control("no-store");
+        assert_eq!(res.cache_control, Some("no-store"));
+    }
+
+    #[test]
+    fn honeypot_answers_200_so_the_attack_looks_successful() {
+        // A 403 would tell a scanner the path exists and is guarded. Returning
+        // 200 with plausible bait keeps it chasing a dead end.
+        let res = Response::forbidden("/etc/passwd");
+        assert_eq!(res.status, 200);
+        assert_eq!(res.content_type, "text/plain");
+        assert!(!res.gzip);
+    }
+
+    #[test]
+    fn honeypot_serves_fake_passwd_file() {
+        let body = bait("/etc/passwd");
+        assert!(body.starts_with("root:x:0:0:"));
+        assert!(body.contains("www-data"));
+    }
+
+    #[test]
+    fn honeypot_serves_fake_shadow_hashes() {
+        assert!(bait("/etc/shadow").contains("root:$6$rounds="));
+    }
+
+    #[test]
+    fn honeypot_serves_fake_env_secrets() {
+        let body = bait("/.env");
+        assert!(body.contains("DATABASE_URL="));
+        assert!(body.contains("AWS_SECRET_ACCESS_KEY="));
+    }
+
+    #[test]
+    fn honeypot_serves_fake_ssh_key() {
+        assert!(bait("/home/deploy/.ssh/id_rsa").contains("BEGIN OPENSSH PRIVATE KEY"));
+    }
+
+    #[test]
+    fn honeypot_serves_fake_wordpress_config() {
+        assert!(bait("/wp-config.php").contains("define('DB_PASSWORD'"));
+    }
+
+    #[test]
+    fn honeypot_serves_fake_proc_status() {
+        assert!(bait("/proc/self/status").contains("Name:   nginx"));
+    }
+
+    #[test]
+    fn honeypot_serves_fake_ctf_flags() {
+        assert!(bait("/flag.txt").contains("FLAG{"));
+    }
+
+    #[test]
+    fn honeypot_serves_fake_app_config() {
+        assert!(bait("/app.conf").contains("[database]"));
+    }
+
+    #[test]
+    fn honeypot_serves_fake_aws_credentials() {
+        assert!(bait("/.aws/credentials").contains("aws_access_key_id ="));
+    }
+
+    #[test]
+    fn honeypot_serves_fake_compose_file() {
+        assert!(bait("/docker-compose.yml").contains("services:"));
+    }
+
+    #[test]
+    fn honeypot_matching_ignores_case() {
+        assert!(bait("/ETC/PASSWD").starts_with("root:x:0:0:"));
+        assert!(bait("/WP-CONFIG.PHP").contains("define('DB_NAME'"));
+    }
+
+    #[test]
+    fn unrecognised_attacks_get_the_taunt() {
+        let body = bait("/some/random/../attack");
+        assert!(body.starts_with("Nice attack"));
+    }
+
+    #[test]
+    fn bait_never_leaks_a_real_secret_marker() {
+        // Every canned payload must stay obviously synthetic: no value here is
+        // read from the host, so a leak could only come from a future edit.
+        for path in [
+            "/etc/passwd",
+            "/.env",
+            "/.aws/credentials",
+            "/wp-config.php",
+        ] {
+            let body = bait(path);
+            assert!(!body.is_empty());
+            assert!(!body.contains(env!("CARGO_MANIFEST_DIR")));
+        }
+    }
+
+    #[test]
+    fn specific_patterns_win_over_generic_config_match() {
+        // "/etc/passwd" also contains no generic keyword, but ".env" and
+        // "config" overlap in paths like "/config/.env": the .env arm is
+        // checked first and must win.
+        assert!(bait("/config/.env").contains("DATABASE_URL="));
+    }
+}
