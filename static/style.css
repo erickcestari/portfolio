@@ -1,21 +1,23 @@
 :root {
-    color-scheme: dark light;
+    /* Which of the two palettes below is live. The theme toggle narrows this
+       to a single keyword on <html data-theme>, overriding the system. */
+    color-scheme: light dark;
 
-    /* ---- Color palette (warm archival, dark paper) ---- */
-    --bg:           #121110;
-    --bg-2:         #1c1a17;
-    --paper:        #121110;
-    --ink:          #ece7df;
-    --ink-2:        #d8d2c6;
-    --fg:           #ece7df;
-    --muted:        #9a938a;
-    --accent:       #d4a15a;
-    --accent-warm:  #d4a15a;
-    --link:         #d4a15a;
-    --rule:         #33302b;
-    --rule-soft:    #262420;
-    --code-bg:      #1c1a17;
-    --tag-bg:       #1c1a17;
+    /* ---- Color palette: warm cream paper by day, dark paper by night ---- */
+    --bg:           light-dark(#f7f3ec, #121110);
+    --bg-2:         light-dark(#efe9de, #1c1a17);
+    --paper:        light-dark(#f7f3ec, #121110);
+    --ink:          light-dark(#201d18, #ece7df);
+    --ink-2:        light-dark(#35312a, #d8d2c6);
+    --fg:           light-dark(#201d18, #ece7df);
+    --muted:        light-dark(#6f6759, #9a938a);
+    --accent:       light-dark(#9c6520, #d4a15a);
+    --accent-warm:  light-dark(#9c6520, #d4a15a);
+    --link:         light-dark(#9c6520, #d4a15a);
+    --rule:         light-dark(#ddd5c7, #33302b);
+    --rule-soft:    light-dark(#e7e0d3, #262420);
+    --code-bg:      light-dark(#efe9de, #1c1a17);
+    --tag-bg:       light-dark(#efe9de, #1c1a17);
 
     /* ---- Font families ---- */
     --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Charter, "Source Serif Pro", "Noto Serif", Georgia, serif;
@@ -68,26 +70,38 @@
 
     /* ---- Small-caps label voice ---- */
     --label-tracking: 0.14em;
+
+    /* ---- Star field, see "Night sky" below ---- */
+    --scene-stars:  1;
+
+    /* ---- Theme toggle: the button offers the theme you are *not* in ---- */
+    --sun:   block;
+    --moon:  none;
 }
 
+/* light-dark() carries the colours on its own; these are the theme-dependent
+   values it cannot express, so they follow the resolved scheme by hand:
+   the system preference, unless the reader picked a theme. */
 @media (prefers-color-scheme: light) {
-    :root {
-        /* ---- Warm cream paper, near-black ink ---- */
-        --bg:           #f7f3ec;
-        --bg-2:         #efe9de;
-        --paper:        #f7f3ec;
-        --ink:          #201d18;
-        --ink-2:        #35312a;
-        --fg:           #201d18;
-        --muted:        #6f6759;
-        --accent:       #9c6520;
-        --accent-warm:  #9c6520;
-        --link:         #9c6520;
-        --rule:         #ddd5c7;
-        --rule-soft:    #e7e0d3;
-        --code-bg:      #efe9de;
-        --tag-bg:       #efe9de;
+    :root:not([data-theme="dark"]) {
+        --scene-stars: 0;
+        --sun:   none;
+        --moon:  block;
     }
+}
+
+:root[data-theme="light"] {
+    color-scheme: light;
+    --scene-stars: 0;
+    --sun:   none;
+    --moon:  block;
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --scene-stars: 1;
+    --sun:   block;
+    --moon:  none;
 }
 
 * {
@@ -121,6 +135,83 @@ body {
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---- Night sky ----
+   Two fixed layers behind the page, painted below the content (negative
+   z-index puts them over the propagated body background but under everything
+   else): a handful of twinkling stars, then the static field over them. */
+html::before,
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: var(--scene-stars);
+    background-repeat: no-repeat;
+}
+
+/* A handful of brighter stars, breathing out of phase with nothing else. */
+html::before {
+    z-index: -2;
+    animation: twinkle 11s ease-in-out infinite alternate;
+    background-image:
+        radial-gradient(1.8px 1.8px at 8.4% 12.6%, rgba(236, 231, 223, 0.75), transparent 100%),
+        radial-gradient(1.4px 1.4px at 27.2% 47.3%, rgba(236, 231, 223, 0.55), transparent 100%),
+        radial-gradient(1.6px 1.6px at 48.1% 8.2%, rgba(236, 231, 223, 0.7), transparent 100%),
+        radial-gradient(1.4px 1.4px at 71.5% 29.4%, rgba(236, 231, 223, 0.6), transparent 100%),
+        radial-gradient(1.6px 1.6px at 88.3% 15.1%, rgba(236, 231, 223, 0.75), transparent 100%),
+        radial-gradient(1.4px 1.4px at 82.0% 58.4%, rgba(236, 231, 223, 0.55), transparent 100%),
+        radial-gradient(1.4px 1.4px at 36.4% 66.2%, rgba(236, 231, 223, 0.6), transparent 100%);
+}
+
+/* The quiet field: many small, dim stars that never move. */
+body::before {
+    z-index: -1;
+    background-image:
+        radial-gradient(1.2px 1.2px at 24.3% 40.7%, rgba(236, 231, 223, 0.5), transparent 100%),
+        radial-gradient(1px 1px at 62.3% 5.8%, rgba(236, 231, 223, 0.5), transparent 100%),
+        radial-gradient(1.4px 1.4px at 26.4% 18.1%, rgba(236, 231, 223, 0.5), transparent 100%),
+        radial-gradient(1px 1px at 39.9% 63.9%, rgba(236, 231, 223, 0.32), transparent 100%),
+        radial-gradient(1px 1px at 86.1% 39.2%, rgba(236, 231, 223, 0.25), transparent 100%),
+        radial-gradient(1px 1px at 16.6% 70.9%, rgba(236, 231, 223, 0.4), transparent 100%),
+        radial-gradient(1.2px 1.2px at 77.4% 61.1%, rgba(236, 231, 223, 0.5), transparent 100%),
+        radial-gradient(1.4px 1.4px at 59.3% 68.2%, rgba(236, 231, 223, 0.5), transparent 100%),
+        radial-gradient(1.4px 1.4px at 39.7% 59.5%, rgba(236, 231, 223, 0.32), transparent 100%),
+        radial-gradient(1px 1px at 87.1% 8.1%, rgba(236, 231, 223, 0.5), transparent 100%),
+        radial-gradient(1.4px 1.4px at 22.3% 71.5%, rgba(236, 231, 223, 0.4), transparent 100%),
+        radial-gradient(1.2px 1.2px at 42.3% 61.8%, rgba(236, 231, 223, 0.5), transparent 100%),
+        radial-gradient(1px 1px at 58.3% 67.0%, rgba(236, 231, 223, 0.4), transparent 100%),
+        radial-gradient(1px 1px at 98.1% 50.0%, rgba(236, 231, 223, 0.4), transparent 100%),
+        radial-gradient(1px 1px at 95.5% 67.0%, rgba(236, 231, 223, 0.32), transparent 100%),
+        radial-gradient(1.2px 1.2px at 63.0% 73.1%, rgba(236, 231, 223, 0.4), transparent 100%),
+        radial-gradient(1.4px 1.4px at 13.2% 36.2%, rgba(236, 231, 223, 0.25), transparent 100%),
+        radial-gradient(1px 1px at 34.7% 5.9%, rgba(236, 231, 223, 0.25), transparent 100%),
+        radial-gradient(1px 1px at 29.8% 57.1%, rgba(236, 231, 223, 0.25), transparent 100%),
+        radial-gradient(1.4px 1.4px at 60.3% 56.6%, rgba(236, 231, 223, 0.4), transparent 100%),
+        radial-gradient(1.2px 1.2px at 55.0% 68.3%, rgba(236, 231, 223, 0.32), transparent 100%),
+        radial-gradient(1px 1px at 98.9% 23.6%, rgba(236, 231, 223, 0.25), transparent 100%),
+        radial-gradient(1px 1px at 59.8% 3.3%, rgba(236, 231, 223, 0.5), transparent 100%),
+        radial-gradient(1px 1px at 29.6% 20.2%, rgba(236, 231, 223, 0.4), transparent 100%),
+        radial-gradient(1.4px 1.4px at 31.8% 71.0%, rgba(236, 231, 223, 0.5), transparent 100%),
+        radial-gradient(1px 1px at 46.1% 39.0%, rgba(236, 231, 223, 0.4), transparent 100%),
+        radial-gradient(1px 1px at 43.3% 53.6%, rgba(236, 231, 223, 0.4), transparent 100%),
+        radial-gradient(1.2px 1.2px at 43.9% 19.9%, rgba(236, 231, 223, 0.4), transparent 100%),
+        radial-gradient(1.2px 1.2px at 2.1% 31.3%, rgba(236, 231, 223, 0.25), transparent 100%),
+        radial-gradient(1px 1px at 37.9% 44.0%, rgba(236, 231, 223, 0.25), transparent 100%),
+        radial-gradient(1.2px 1.2px at 63.1% 25.3%, rgba(236, 231, 223, 0.4), transparent 100%),
+        radial-gradient(1.4px 1.4px at 60.7% 21.4%, rgba(236, 231, 223, 0.25), transparent 100%),
+        radial-gradient(1px 1px at 58.8% 70.7%, rgba(236, 231, 223, 0.4), transparent 100%),
+        radial-gradient(1.2px 1.2px at 25.6% 34.3%, rgba(236, 231, 223, 0.32), transparent 100%);
+}
+
+@keyframes twinkle {
+    from { opacity: calc(var(--scene-stars) * 0.45); }
+    to   { opacity: var(--scene-stars); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html::before { animation: none; }
 }
 
 ::selection {
@@ -177,6 +268,25 @@ nav a:first-child {
     margin-right: auto;
     color: var(--ink);
 }
+
+/* ---- Theme toggle: sun by night, moon by day ---- */
+.theme-toggle {
+    display: flex;
+    align-self: center;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color var(--transition);
+}
+
+.theme-toggle:hover {
+    color: var(--ink);
+}
+
+.theme-toggle .sun  { display: var(--sun); }
+.theme-toggle .moon { display: var(--moon); }
 
 main {
     margin-bottom: 4.5rem;
@@ -912,6 +1022,11 @@ footer {
         --rule-soft: #dddddd;
         --link:      #000000;
         --code-bg:   #f5f2ec;
+        --scene-stars: 0;
+    }
+
+    html::before, body::before {
+        display: none;
     }
 
     body {

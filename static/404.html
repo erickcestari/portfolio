@@ -13,6 +13,16 @@
 </head>
 
 <body>
+    <script>
+        // Apply the stored theme before anything paints; with no stored choice
+        // the stylesheet follows the system preference on its own.
+        try {
+            const stored = localStorage.getItem("theme");
+            if (stored === "light" || stored === "dark") {
+                document.documentElement.dataset.theme = stored;
+            }
+        } catch (e) { }
+    </script>
     <a class="skip-link" href="#main-content">Skip to content</a>
     <header>
         <nav>
@@ -20,8 +30,30 @@
             <a href="/blog">Blog</a>
             <a href="/books">Books</a>
             <a href="https://github.com/erickcestari" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <button class="theme-toggle" type="button" aria-label="Switch theme" title="Switch theme">
+                <svg class="sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4.2" />
+                    <path d="M12 2.5v2.3M12 19.2v2.3M2.5 12h2.3M19.2 12h2.3M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6" />
+                </svg>
+                <svg class="moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1z" />
+                </svg>
+            </button>
         </nav>
     </header>
+    <script>
+        document.querySelector(".theme-toggle").addEventListener("click", () => {
+            const root = document.documentElement;
+            const light = matchMedia("(prefers-color-scheme: light)").matches;
+            const next = (root.dataset.theme || (light ? "light" : "dark")) === "dark" ? "light" : "dark";
+            root.dataset.theme = next;
+            try {
+                localStorage.setItem("theme", next);
+            } catch (e) { }
+        });
+    </script>
 
     <main id="main-content">
         <h2>Block not found. Are you sure this isn't an orphan?</h2>
