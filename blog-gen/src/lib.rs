@@ -4,7 +4,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use pulldown_cmark::{html, CowStr, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{
+    html, CodeBlockKind, CowStr, Event, HeadingLevel, Options, Parser, Tag, TagEnd,
+};
+
+mod highlight;
+use highlight::Highlighter;
 
 const SITE_URL: &str = "https://erickcestari.dev";
 
@@ -40,6 +45,8 @@ pub fn generate(root: &Path) -> Result<usize, String> {
     let list_tmpl = layout.template(&templates_dir, "list.html")?;
     let home_tmpl = layout.template(&templates_dir, "home.html")?;
 
+    let highlighter = Highlighter::new();
+
     let mut posts: Vec<(Post, Option<PathBuf>)> = Vec::new();
     let read_dir =
         fs::read_dir(&content_dir).map_err(|e| format!("read {}: {e}", content_dir.display()))?;
@@ -70,7 +77,7 @@ pub fn generate(root: &Path) -> Result<usize, String> {
             continue;
         };
 
-        match parse_post(&md_path, &default_slug) {
+        match parse_post(&md_path, &default_slug, &highlighter) {
             Ok(p) => posts.push((p, asset_dir)),
             Err(e) => {
                 eprintln!("Skipping {}: {e}", md_path.display());
@@ -146,7 +153,7 @@ fn write(path: &Path, contents: String) -> Result<(), String> {
     fs::write(path, contents).map_err(|e| format!("write {}: {e}", path.display()))
 }
 
-fn parse_post(path: &Path, default_slug: &str) -> Result<Post, String> {
+fn parse_post(path: &Path, default_slug: &str, hl: &Highlighter) -> Result<Post, String> {
     let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let (meta, body) = split_frontmatter(&raw);
 
@@ -181,7 +188,7 @@ fn parse_post(path: &Path, default_slug: &str) -> Result<Post, String> {
         return Err("missing frontmatter: date".into());
     }
 
-    let (html_out, headings) = render_markdown(body);
+    let (html_out, headings) = render_markdown(body, hl);
     let toc = render_toc(&headings);
     let reading_time = estimate_reading_minutes(body);
 
@@ -201,7 +208,7 @@ fn estimate_reading_minutes(body: &str) -> u32 {
     ((words as f32) / 220.0).ceil().max(1.0) as u32
 }
 
-fn render_markdown(body: &str) -> (String, Vec<Heading>) {
+fn render_markdown(body: &str, hl: &Highlighter) -> (String, Vec<Heading>) {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_STRIKETHROUGH);
     options.insert(Options::ENABLE_TABLES);
@@ -265,8 +272,52 @@ fn render_markdown(body: &str) -> (String, Vec<Heading>) {
         .collect();
 
     let mut html_out = String::new();
-    html::push_html(&mut html_out, rewritten.into_iter());
+    html::push_html(
+        &mut html_out,
+        highlight_code_blocks(rewritten, hl).into_iter(),
+    );
     (wrap_images_in_figures(&html_out), headings)
+}
+
+/// Swaps each fenced block for pre-highlighted HTML, so pulldown-cmark's own
+/// (unstyled) code-block rendering never runs.
+fn highlight_code_blocks<'a>(events: Vec<Event<'a>>, hl: &Highlighter) -> Vec<Event<'a>> {
+    let mut out = Vec::with_capacity(events.len());
+    // Set while inside a fence: the language, and the source collected so far.
+    let mut fence: Option<(Option<String>, String)> = None;
+
+    for ev in events {
+        match ev {
+            Event::Start(Tag::CodeBlock(kind)) => {
+                fence = Some((fence_language(&kind), String::new()));
+            }
+            Event::Text(text) => match fence.as_mut() {
+                Some((_, code)) => code.push_str(&text),
+                None => out.push(Event::Text(text)),
+            },
+            Event::End(TagEnd::CodeBlock) => match fence.take() {
+                Some((lang, code)) => {
+                    let html = hl.block(lang.as_deref(), &code);
+                    out.push(Event::Html(CowStr::Boxed(html.into_boxed_str())));
+                }
+                None => out.push(Event::End(TagEnd::CodeBlock)),
+            },
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+/// ```` ```rust,ignore ```` -> `Some("rust")`; a bare or indented fence -> `None`.
+fn fence_language(kind: &CodeBlockKind) -> Option<String> {
+    let CodeBlockKind::Fenced(info) = kind else {
+        return None;
+    };
+    let token = info
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .next()
+        .unwrap_or("");
+    (!token.is_empty()).then(|| token.to_ascii_lowercase())
 }
 
 fn wrap_images_in_figures(html: &str) -> String {
