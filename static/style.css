@@ -19,6 +19,17 @@
     --code-bg:      light-dark(#efe9de, #1c1a17);
     --tag-bg:       light-dark(#efe9de, #1c1a17);
 
+    /* ---- Syntax highlighting: warm, low-saturation, same paper family.
+       Classes are baked in at build time; see blog-gen/src/highlight.rs ---- */
+    --hl-comment:   light-dark(#6d6552, #8a8172);
+    --hl-keyword:   light-dark(#9d3f2f, #ea6962);
+    --hl-storage:   light-dark(#8f3f71, #d3869b);
+    --hl-string:    light-dark(#5c6a19, #a9b665);
+    --hl-constant:  light-dark(#96560f, #d8a657);
+    --hl-function:  light-dark(#1d6a75, #89b482);
+    --hl-punct:     light-dark(#6f6759, #9a9184);
+    --hl-invalid:   light-dark(#a51f1f, #f2594b);
+
     /* ---- Font families ---- */
     --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Charter, "Source Serif Pro", "Noto Serif", Georgia, serif;
     --mono:  ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -548,6 +559,78 @@ article pre code {
     color: inherit;
 }
 
+/* ---- Syntax tokens ----
+   syntect nests one span per TextMate scope, so an outer span may cover a whole
+   expression while inner ones cover its parts. Only select on atoms that are
+   specific to a token (`.hl-comment`, `.hl-keyword`); never on broad wrappers
+   like `.hl-meta` or a bare `.hl-function`, which would paint entire regions. */
+article pre .hl-comment {
+    color: var(--hl-comment);
+    font-style: italic;
+}
+
+article pre .hl-keyword {
+    color: var(--hl-keyword);
+}
+
+article pre .hl-storage,
+article pre .hl-entity.hl-name.hl-type,
+article pre .hl-entity.hl-name.hl-class,
+article pre .hl-entity.hl-name.hl-namespace,
+article pre .hl-support.hl-type,
+article pre .hl-support.hl-class {
+    color: var(--hl-storage);
+}
+
+article pre .hl-string,
+article pre .hl-markup.hl-raw,
+article pre .hl-punctuation.hl-definition.hl-string {
+    color: var(--hl-string);
+}
+
+article pre .hl-constant,
+article pre .hl-variable.hl-language,
+article pre .hl-entity.hl-name.hl-tag {
+    color: var(--hl-constant);
+}
+
+article pre .hl-entity.hl-name.hl-function,
+article pre .hl-variable.hl-function,
+article pre .hl-support.hl-function,
+article pre .hl-support.hl-macro,
+article pre .hl-entity.hl-other.hl-attribute-name {
+    color: var(--hl-function);
+}
+
+/* Operators read as punctuation, not as control flow. */
+article pre .hl-keyword.hl-operator,
+article pre .hl-punctuation {
+    color: var(--hl-punct);
+}
+
+/* Punctuation exceptions: a comment's opening marker is punctuation by scope
+   but reads as comment, and interpolation braces must stand out from the
+   string they sit in. Both need the extra atom to outrank .hl-punctuation. */
+article pre .hl-punctuation.hl-definition.hl-comment {
+    color: var(--hl-comment);
+}
+
+article pre .hl-punctuation.hl-section.hl-interpolation {
+    color: var(--hl-constant);
+}
+
+article pre .hl-invalid {
+    color: var(--hl-invalid);
+}
+
+article pre .hl-markup.hl-inserted {
+    color: var(--hl-string);
+}
+
+article pre .hl-markup.hl-deleted {
+    color: var(--hl-invalid);
+}
+
 /* ---- Tables ---- */
 article table {
     border-collapse: collapse;
@@ -1029,6 +1112,17 @@ footer {
         --link:      #000000;
         --code-bg:   #f5f2ec;
         --scene-stars: 0;
+
+        /* Syntax colour does not survive a grayscale printer; comments stay
+           lighter and italic, everything else is plain black. */
+        --hl-comment:  #555555;
+        --hl-keyword:  #000000;
+        --hl-storage:  #000000;
+        --hl-string:   #000000;
+        --hl-constant: #000000;
+        --hl-function: #000000;
+        --hl-punct:    #000000;
+        --hl-invalid:  #000000;
     }
 
     html::before, body::before {
