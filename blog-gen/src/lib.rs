@@ -21,6 +21,8 @@ struct Post {
     title: String,
     date: String,
     description: String,
+    /// File name of the post's cover art, if the post directory ships one.
+    cover: Option<String>,
     html: String,
     toc: String,
     reading_time: u32,
@@ -77,7 +79,7 @@ pub fn generate(root: &Path) -> Result<usize, String> {
             continue;
         };
 
-        match parse_post(&md_path, &default_slug, &highlighter) {
+        match parse_post(&md_path, &default_slug, asset_dir.as_deref(), &highlighter) {
             Ok(p) => posts.push((p, asset_dir)),
             Err(e) => {
                 eprintln!("Skipping {}: {e}", md_path.display());
@@ -153,7 +155,12 @@ fn write(path: &Path, contents: String) -> Result<(), String> {
     fs::write(path, contents).map_err(|e| format!("write {}: {e}", path.display()))
 }
 
-fn parse_post(path: &Path, default_slug: &str, hl: &Highlighter) -> Result<Post, String> {
+fn parse_post(
+    path: &Path,
+    default_slug: &str,
+    asset_dir: Option<&Path>,
+    hl: &Highlighter,
+) -> Result<Post, String> {
     let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let (meta, body) = split_frontmatter(&raw);
 
@@ -197,10 +204,37 @@ fn parse_post(path: &Path, default_slug: &str, hl: &Highlighter) -> Result<Post,
         title,
         date,
         description,
+        cover: asset_dir.and_then(find_cover),
         html: html_out,
         toc,
         reading_time,
     })
+}
+
+/// A post's cover is any image in its directory named `cover.*` or `*-cover.*`;
+/// `copy_assets` already ships it next to the rendered page.
+fn find_cover(dir: &Path) -> Option<String> {
+    const IMAGE_EXTS: [&str; 6] = ["png", "jpg", "jpeg", "webp", "avif", "gif"];
+
+    let mut names: Vec<String> = fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .filter(|e| e.path().is_file())
+        .filter_map(|e| {
+            let path = e.path();
+            let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+            if !IMAGE_EXTS.contains(&ext.as_str()) {
+                return None;
+            }
+            let stem = path.file_stem()?.to_str()?;
+            let is_cover = stem == "cover" || stem.ends_with("-cover");
+            is_cover.then(|| path.file_name()?.to_str().map(str::to_string))?
+        })
+        .collect();
+
+    // Directory order is arbitrary; sort so a second cover never flips the pick.
+    names.sort();
+    names.into_iter().next()
 }
 
 fn estimate_reading_minutes(body: &str) -> u32 {
@@ -487,8 +521,34 @@ fn humanize_date(iso: &str) -> String {
     }
 }
 
+/// Site-absolute path to a post's cover, e.g. `/blog/my-post/my-post-cover.png`.
+fn cover_path(p: &Post) -> Option<String> {
+    p.cover
+        .as_ref()
+        .map(|file| format!("/blog/{}/{}", p.slug, file))
+}
+
 fn render_post(tmpl: &str, p: &Post) -> String {
-    tmpl.replace("{{title}}", &escape_html(&p.title))
+    let cover = cover_path(p);
+    // Decorative: the title right below it already names the post.
+    let cover_tag = cover.as_ref().map_or(String::new(), |src| {
+        format!("<img class=\"post-cover\" src=\"{src}\" alt=\"\" fetchpriority=\"high\" decoding=\"async\">")
+    });
+    // Social cards fall back to the portrait for posts that ship no cover.
+    let og_image = cover.as_ref().map_or_else(
+        || format!("{SITE_URL}/profile.webp"),
+        |src| format!("{SITE_URL}{src}"),
+    );
+    let twitter_card = if cover.is_some() {
+        "summary_large_image"
+    } else {
+        "summary"
+    };
+
+    tmpl.replace("{{cover}}", &cover_tag)
+        .replace("{{og_image}}", &og_image)
+        .replace("{{twitter_card}}", twitter_card)
+        .replace("{{title}}", &escape_html(&p.title))
         .replace("{{date_iso}}", &escape_html(&p.date))
         .replace("{{date}}", &escape_html(&humanize_date(&p.date)))
         .replace("{{description}}", &escape_html(&p.description))
@@ -516,12 +576,16 @@ fn render_list(tmpl: &str, posts: &[&Post]) -> String {
             ));
             current_year = year;
         }
+        let cover = cover_path(p).map_or(String::new(), |src| {
+            format!("\n                        <img class=\"post-card-cover\" src=\"{src}\" alt=\"\" loading=\"lazy\" decoding=\"async\">")
+        });
         items.push_str(&format!(
-            "                <li><a href=\"/blog/{}/\">{}</a><time datetime=\"{}\">{}</time></li>\n",
-            p.slug,
-            escape_html(&p.title),
-            escape_html(&p.date),
-            escape_html(&humanize_date(&p.date))
+            "                <li>\n                    <a class=\"post-card\" href=\"/blog/{slug}/\">\n                        <span class=\"post-card-text\">\n                            <span class=\"post-card-title\">{title}</span>\n                            <time datetime=\"{iso}\">{date}</time>\n                        </span>{cover}\n                    </a>\n                </li>\n",
+            slug = p.slug,
+            cover = cover,
+            title = escape_html(&p.title),
+            iso = escape_html(&p.date),
+            date = escape_html(&humanize_date(&p.date)),
         ));
     }
     if !current_year.is_empty() {
