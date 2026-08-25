@@ -5,6 +5,10 @@ description: Core Lightning answered every ping and gossip query even when the p
 slug: ping-flood-oom
 ---
 
+A Lightning node talks to strangers. Anyone can open a TCP connection, complete the BOLT 8 handshake, and start sending messages, with no channel and no funds involved. From that point on, part of what the node spends its memory and CPU on is decided by whoever is on the other end.
+
+This post is about two of those messages in Core Lightning, `ping` and `query_channel_range`, where the sender picks how large the reply will be. Answering them is cheap. Answering them in a loop, to a peer that never reads the answers, is not.
+
 ## Background
 
 Every Lightning node speaks an encrypted peer-to-peer protocol defined in BOLT 8: messages are framed and encrypted with the Noise protocol, and each frame is at most 65,535 bytes. In Core Lightning (CLN) this transport lives in a dedicated daemon, `connectd`, which multiplexes one TCP connection per peer and shuffles messages between the peer and the per-channel subdaemons.
