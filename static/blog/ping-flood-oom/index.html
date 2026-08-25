@@ -91,7 +91,9 @@
   </details>
 </nav>
 
-            <h2 id="background">Background</h2>
+            <p>A Lightning node talks to strangers. Anyone can open a TCP connection, complete the BOLT 8 handshake, and start sending messages, with no channel and no funds involved. From that point on, part of what the node spends its memory and CPU on is decided by whoever is on the other end.</p>
+<p>This post is about two of those messages in Core Lightning, <code>ping</code> and <code>query_channel_range</code>, where the sender picks how large the reply will be. Answering them is cheap. Answering them in a loop, to a peer that never reads the answers, is not.</p>
+<h2 id="background">Background</h2>
 <p>Every Lightning node speaks an encrypted peer-to-peer protocol defined in BOLT 8: messages are framed and encrypted with the Noise protocol, and each frame is at most 65,535 bytes. In Core Lightning (CLN) this transport lives in a dedicated daemon, <code>connectd</code>, which multiplexes one TCP connection per peer and shuffles messages between the peer and the per-channel subdaemons.</p>
 <p>Some peer messages never reach a subdaemon at all. <code>connectd</code> answers them locally, right on the connection:</p>
 <ul>
