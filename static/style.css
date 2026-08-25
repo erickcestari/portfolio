@@ -321,7 +321,7 @@ h1 {
 
 /* Frontmatter titles are written lowercase; display them capitalized. */
 article h1,
-.post-list a {
+.post-card-title {
     text-transform: capitalize;
 }
 
@@ -667,6 +667,17 @@ article img {
     margin-bottom: 1rem;
 }
 
+/* Cover art opens the post, above the title. */
+.post-cover {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1200 / 630;
+    object-fit: cover;
+    border: var(--border) solid var(--rule);
+    border-radius: var(--radius-sm);
+    margin-bottom: 1.75rem;
+}
+
 article figure:has(figcaption) {
     margin-bottom: 1.35rem;
 }
@@ -769,17 +780,37 @@ sup.footnote-reference a {
     padding: 0 0.15em;
 }
 
-/* ---- Post index: year markers with entries hanging under them ---- */
+/* ---- Post index: year markers with entries hanging under them ----
+   Each entry is one link: title and date, with the cover art below them.
+   Posts without cover art keep the same layout, minus the image. */
 .post-list {
     list-style: none;
     margin-left: 0;
 }
 
 .post-list li {
-    margin-bottom: 1.5rem;
+    margin-bottom: 2.5rem;
+}
+
+.post-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.post-card-cover {
+    width: 100%;
+    aspect-ratio: 1200 / 630;
+    object-fit: cover;
+    border: var(--border) solid var(--rule);
+    border-radius: var(--radius-sm);
+}
+
+.post-card-text {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    min-width: 0;
 }
 
 .post-list time {
@@ -789,7 +820,7 @@ sup.footnote-reference a {
     font-variant-numeric: oldstyle-nums;
 }
 
-.post-list a {
+.post-card-title {
     font-size: var(--fs-post-title);
     font-weight: 500;
     color: var(--ink);
@@ -797,7 +828,7 @@ sup.footnote-reference a {
     letter-spacing: -0.012em;
 }
 
-.post-list a:hover {
+.post-card:hover .post-card-title {
     text-decoration: underline;
     text-decoration-color: color-mix(in oklab, var(--accent) 65%, transparent);
     text-underline-offset: 3px;
@@ -1077,6 +1108,14 @@ footer {
     .section-label,
     .year {
         margin-top: 2.75rem;
+    }
+
+    .post-list li {
+        margin-bottom: 2rem;
+    }
+
+    .post-cover {
+        margin-bottom: 1.25rem;
     }
 
     footer {
