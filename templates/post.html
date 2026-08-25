@@ -12,12 +12,12 @@
     <meta property="og:title" content="{{title}} - Erick Cestari">
     <meta property="og:description" content="{{description}}">
     <meta property="og:url" content="{{url}}">
-    <meta property="og:image" content="https://erickcestari.dev/profile.webp">
+    <meta property="og:image" content="{{og_image}}">
 
-    <meta name="twitter:card" content="summary">
+    <meta name="twitter:card" content="{{twitter_card}}">
     <meta name="twitter:title" content="{{title}} - Erick Cestari">
     <meta name="twitter:description" content="{{description}}">
-    <meta name="twitter:image" content="https://erickcestari.dev/profile.webp">
+    <meta name="twitter:image" content="{{og_image}}">
 
     <title>{{title}} - erickcestari.dev</title>
 
@@ -33,6 +33,7 @@
 
     <main id="main-content">
         <article>
+            {{cover}}
             <h1>{{title}}</h1>
             <p class="post-meta"><time datetime="{{date_iso}}">{{date}}</time><span class="reading-time">{{reading_time}} min read</span></p>
             {{toc}}
