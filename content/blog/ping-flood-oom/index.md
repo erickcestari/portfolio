@@ -5,18 +5,16 @@ description: Core Lightning answered every ping and gossip query even when the p
 slug: ping-flood-oom
 ---
 
-A Lightning node talks to strangers. Anyone can open a TCP connection, complete the BOLT 8 handshake, and start sending messages, with no channel and no funds involved. From that point on, part of what the node spends its memory and CPU on is decided by whoever is on the other end.
-
-This post is about two of those messages in Core Lightning, `ping` and `query_channel_range`, where the sender picks how large the reply will be. Answering them is cheap. Answering them in a loop, to a peer that never reads the answers, is not.
+I found a critical DoS vulnerability in [Core Lightning (CLN)](https://github.com/ElementsProject/lightning) while writing my own BOLT8 implementation. If I flood the node with `ping` messages asking for the largest possible `pong` and then never read the TCP buffer, the node keeps queueing the `pong` messages until it runs out of memory and gets OOM-killed.
 
 ## Background
 
-Every Lightning node speaks an encrypted peer-to-peer protocol defined in BOLT 8: messages are framed and encrypted with the Noise protocol, and each frame is at most 65,535 bytes. In Core Lightning (CLN) this transport lives in a dedicated daemon, `connectd`, which multiplexes one TCP connection per peer and shuffles messages between the peer and the per-channel subdaemons.
+Every Lightning node speaks an encrypted peer-to-peer protocol defined in [BOLT 8](https://github.com/lightning/bolts/blob/master/08-transport.md): messages are framed and encrypted with the [Noise protocol](https://noiseprotocol.org/noise.html), and each frame is at most 65,535 bytes. In [Core Lightning (CLN)](https://github.com/ElementsProject/lightning) this transport lives in a dedicated daemon, `connectd`, which multiplexes one TCP connection per peer and shuffles messages between the peer and the per-channel subdaemons.
 
-Some peer messages never reach a subdaemon at all. `connectd` answers them locally, right on the connection:
+Most messages are just forwarded: `connectd` decrypts them and hands them to the subdaemon that owns that channel. But a few never reach a subdaemon at all. `connectd` builds the reply itself, right there on the connection, and sends it back. Those are the ones I'll call locally handled:
 
-- **`ping`** (BOLT 1). A `ping` carries a `num_pong_bytes` field. The receiver must reply with a `pong` message padded to exactly that many bytes, up to a maximum of 65,531. It is a liveness probe, and the reply is generated entirely by the receiver.
-- **`query_channel_range`** (BOLT 7). A gossip query asking "give me the channels in this block range." The receiver builds and streams back a reply covering `first_blocknum` through `first_blocknum + number_of_blocks`.
+- **`ping`** ([BOLT 1](https://github.com/lightning/bolts/blob/master/01-messaging.md)). A `ping` carries a `num_pong_bytes` field. The receiver must reply with a `pong` message padded to exactly that many bytes, up to a maximum of 65,531. It is a liveness probe, and the reply is generated entirely by the receiver.
+- **`query_channel_range`** ([BOLT 7](https://github.com/lightning/bolts/blob/master/07-routing-gossip.md)). A gossip query asking "give me the channels in this block range." The receiver builds and streams back a reply covering `first_blocknum` through `first_blocknum + number_of_blocks`. (`query_short_channel_ids` is handled the same way, though a 65,535-byte frame caps how much you can ask for in one request.)
 
 Both are handled inside `connectd`, and in both the *sender* picks how large the *reply* is.
 
@@ -44,9 +42,7 @@ if (!msg) {
 }
 ```
 
-This is textbook backpressure. If a peer stops reading its socket, `connectd`'s writes block, the encrypted queue never empties, `&peer->peer_in` is never woken, and the read side stalls. The node reads no faster than it can send, and memory stays bounded.
-
-The problem was that locally-handled messages skipped the gate entirely. After answering a `ping` or a gossip query, the read loop took a shortcut:
+This is textbook backpressure, but the resource it protects is the subdaemon, not the socket. `connectd` reads no faster than the subdaemons consume, which is enough as long as every message the read loop parks on is on its way to one. The locally handled ones are not: `connectd` answers them itself, onto the peer's own outgoing queue, and after answering one the read loop did not park at all.
 
 ```c
 /* If we swallow this, just try again. */
@@ -100,10 +96,10 @@ The outgoing queue grows without bound. `query_channel_range` with `number_of_bl
 
 The exploit needs no funded channel and no valid gossip. It only needs to complete the Noise handshake and then refuse to read:
 
-1. The attacker `M` completes the BOLT 8 handshake with the victim `V`. No channel required.
-2. `M` sends a flood of `ping` messages, each with `num_pong_bytes = 65531` (or a flood of `query_channel_range` with `number_of_blocks = U32::MAX`).
-3. `M` **never reads** from the socket.
-4. `V`'s `connectd` answers every message, appending a large `pong` (or gossip reply) to the per-peer outgoing queue, and immediately reads the next request because local handling skips the read gate.
+1. Alice, the attacker, completes the BOLT 8 handshake with Bob, the victim.
+2. Alice sends a flood of `ping` messages, each with `num_pong_bytes = 65531` (or a flood of `query_channel_range` with `number_of_blocks = U32::MAX`).
+3. Alice **never reads** from the socket.
+4. Bob's `connectd` answers every message, appending a large `pong` (or gossip reply) to the per-peer outgoing queue, and immediately reads the next request because local handling skips the read gate.
 5. The queue grows until `connectd` exhausts RAM and swap, and the node is killed by the OOM killer.
 
 In testing on a 2-core VM with 2 GB RAM and 2 GB swap, a single connection was enough to take the node down; a hundred simulated peers did it faster. The victim needs no open channel with the attacker, so the attack surface is every reachable node on the network.
@@ -152,13 +148,7 @@ I was learning BOLT 8 by implementing it, writing my own library for the Noise h
 
 ## Lessons Learned
 
-The interesting part is that CLN already had backpressure. The bug was that the locally handled messages bypassed it. The shortcut looked harmless because no subdaemon was involved and there was nothing to route anywhere, but it also meant the read side wasn't waiting for the write side anymore.
-
-After finding this, I went through the other messages `handle_message_locally` answers and looked for the same pattern: can the peer make us generate a large response, and do we wait for that response to leave the socket before reading again? `ping` and `query_channel_range` were the two where the sender picks the size, and both took the shortcut.
-
-The other assumption that broke is about the peer. The write path assumes the peer eventually drains its socket. A peer that finishes the handshake and then stops reading never does, so every reply we generate stays on our queue. No channel, no funds, no valid gossip: finishing a Noise handshake is enough.
-
-It also matters how this was found. I was writing my own BOLT 8 implementation to learn the protocol, not to hunt for bugs, but what came out of it was a client with no interest in behaving well: it could put any value the wire format allows in a field and then decline to read the replies. Testing with an existing implementation would not have gotten there, since both sides would already agree on what a reasonable peer does.
+Backpressure only counts if every path goes through it. CLN had the gate and the gate worked, but it was coupled to subdaemon delivery, and the handful of messages `connectd` answers by itself never touch a subdaemon. One shortcut around one gate, on the messages where the sender picks the reply size, was enough to OOM the node once the peer stopped draining its socket.
 
 ## Timeline
 
