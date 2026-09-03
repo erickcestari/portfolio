@@ -1,2 +1,9 @@
 /target
 .env
+
+# Rendered by blog-gen (build.rs) from content/ + templates/ on every build.
+/static/blog/
+/static/index.html
+/static/books.html
+/static/404.html
+/static/sitemap.xml
