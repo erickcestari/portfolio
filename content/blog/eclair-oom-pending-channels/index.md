@@ -102,7 +102,7 @@ The attack needs no channel, no funds, and no prior relationship with the victim
 
 The root cause is that identity tracking collapses two distinct live channels that happen to share an id, so a channel can exist without ever counting toward the limit. The fix, [PR #3324](https://github.com/ACINQ/eclair/pull/3324), closes both bugs: the `Peer` duplicate guard now rejects an incoming `temporary_channel_id` that already exists under either keyspace, temporary or final, so a new open can no longer reuse a live channel's final id; and the rate limiter tracks channels by a stable identity, so `replaceChannel` and `removeChannel` can no longer delete two distinct live channels when they share an id. With both in place the counter reflects the real number of pending channels again, and the flood hits the limit as intended. It shipped in eclair [`v0.14.1`](https://github.com/ACINQ/eclair/releases/tag/v0.14.1).
 
-The same PR also closed a separate bug in the same fundee flow: a race between the duplicate check and the channel insertion that could orphan channel actors and leak memory, found by Matt Morehouse with `smite`, and disclosed as LNF-2026-0003.
+The same PR also closed a separate bug in the same fundee flow: a race between the duplicate check and the channel insertion that could orphan channel actors and leak memory, found by Matt Morehouse with `smite`, and disclosed as [LNF-2026-0003](https://lnfuzz.org/advisories/eclair-open-channel-race-dos/).
 
 ## Discovery
 
