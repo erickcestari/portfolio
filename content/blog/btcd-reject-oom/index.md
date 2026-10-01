@@ -7,7 +7,7 @@ slug: btcd-reject-oom
 
 [btcd](https://github.com/btcsuite/btcd), the Go full node from btcsuite, accepted `alert`, `cfcheckpt`, and `reject` messages of up to 32 MiB each and allocated a receive buffer of the full declared length for every one. Any peer that completes the version handshake can send them. With btcd's default of 125 peer slots, enough connections streaming maximum-size messages push the node past its RAM and swap until it is killed for running out of memory.
 
-I found the size gap through differential fuzzing with [bitcoinfuzz](https://github.com/bitcoinfuzz/bitcoinfuzz) and reproduced the crash in a small VM, first with `alert` and later with `reject`.
+I found the size gap through differential fuzzing with [bitcoinfuzz](https://github.com/bitcoinfuzz/bitcoinfuzz) and reproduced the crash in a small VM, first with `alert` and later with `reject`. Thanks to [Bruno Garcia](https://github.com/brunoerg) for helping me along the way.
 
 ## Background
 
@@ -156,4 +156,3 @@ A per-message limit is only as tight as the default it falls back to. btcd sized
 - **2026-06-18:** Released in btcd [`v0.26.0`](https://github.com/btcsuite/btcd/releases/tag/v0.26.0).
 - **2026-09-29:** Public disclosure.
 
-*Acknowledgments: Thanks to [Bruno Garcia](https://github.com/brunoerg) for helping me along the way.*
