@@ -12,6 +12,9 @@
 /// What a caught request is answered with.
 #[derive(Clone, Copy)]
 pub struct Bait {
+    /// What the scanner was after, as shown on the public `/honeypot` page.
+    /// Fixed per trap, so nothing a scanner typed is ever published.
+    pub label: &'static str,
     pub body: &'static str,
     pub content_type: &'static str,
 }
@@ -87,11 +90,27 @@ const HTML: &str = "text/html";
 const JSON: &str = "application/json";
 
 const TRAPS: &[Trap] = &[
-    trap(&[Match::Path(&["etc", "passwd"])], TEXT, PASSWD),
-    trap(&[Match::Path(&["etc", "shadow"])], TEXT, SHADOW),
-    trap(&[Match::Name(".env")], TEXT, DOTENV),
-    trap(&[Match::Name("authorized_keys")], TEXT, AUTHORIZED_KEYS),
     trap(
+        "/etc/passwd",
+        &[Match::Path(&["etc", "passwd"])],
+        TEXT,
+        PASSWD,
+    ),
+    trap(
+        "/etc/shadow",
+        &[Match::Path(&["etc", "shadow"])],
+        TEXT,
+        SHADOW,
+    ),
+    trap(".env files", &[Match::Name(".env")], TEXT, DOTENV),
+    trap(
+        "authorized_keys",
+        &[Match::Name("authorized_keys")],
+        TEXT,
+        AUTHORIZED_KEYS,
+    ),
+    trap(
+        "SSH private keys",
         &[
             Match::Name("id_rsa"),
             Match::Name("id_dsa"),
@@ -104,58 +123,78 @@ const TRAPS: &[Trap] = &[
         SSH_KEY,
     ),
     trap(
+        "git credentials",
         &[Match::Name(".git-credentials"), Match::Name(".netrc")],
         TEXT,
         GIT_CREDENTIALS,
     ),
     trap(
+        ".git directories",
         &[Match::Name(".git"), Match::Name(".gitconfig")],
         TEXT,
         GIT_CONFIG,
     ),
-    trap(&[Match::Name(".svn")], TEXT, SVN_ENTRIES),
     trap(
+        ".svn directories",
+        &[Match::Name(".svn")],
+        TEXT,
+        SVN_ENTRIES,
+    ),
+    trap(
+        "WordPress logins",
         &[Match::Name("wp-login"), Match::Name("wp-admin")],
         HTML,
         WP_LOGIN,
     ),
     trap(
+        "wp-config.php",
         &[Match::Name("wp-config"), Match::Name("wordpress")],
         TEXT,
         WP_CONFIG,
     ),
     trap(
+        "phpMyAdmin",
         &[Match::Name("phpmyadmin"), Match::Name("pma")],
         HTML,
         PHPMYADMIN,
     ),
     trap(
+        "phpinfo()",
         &[Match::Name("phpinfo"), Match::Name("info.php")],
         HTML,
         PHPINFO,
     ),
-    trap(&[Match::Name("proc")], TEXT, PROC_STATUS),
-    trap(&[Match::Name(".htpasswd")], TEXT, HTPASSWD),
-    trap(&[Match::Name(".htaccess")], TEXT, HTACCESS),
+    trap("/proc", &[Match::Name("proc")], TEXT, PROC_STATUS),
+    trap(".htpasswd", &[Match::Name(".htpasswd")], TEXT, HTPASSWD),
+    trap(".htaccess", &[Match::Name(".htaccess")], TEXT, HTACCESS),
     trap(
+        "shell history",
         &[Match::Name(".bash_history"), Match::Name(".zsh_history")],
         TEXT,
         BASH_HISTORY,
     ),
-    trap(&[Match::Name(".npmrc")], TEXT, NPMRC),
-    trap(&[Match::Name(".pypirc")], TEXT, PYPIRC),
+    trap("npm tokens", &[Match::Name(".npmrc")], TEXT, NPMRC),
+    trap("PyPI tokens", &[Match::Name(".pypirc")], TEXT, PYPIRC),
     trap(
+        "SQL dumps",
         &[Match::Ext(".sql"), Match::Name("mysqldump")],
         TEXT,
         SQL_DUMP,
     ),
-    trap(&[Match::Name("actuator")], JSON, ACTUATOR_ENV),
     trap(
+        "Spring actuator",
+        &[Match::Name("actuator")],
+        JSON,
+        ACTUATOR_ENV,
+    ),
+    trap(
+        "Apache server-status",
         &[Match::Name("server-status"), Match::Name("server-info")],
         HTML,
         SERVER_STATUS,
     ),
     trap(
+        "cloud metadata",
         &[
             Match::Name("meta-data"),
             Match::Name("user-data"),
@@ -165,11 +204,13 @@ const TRAPS: &[Trap] = &[
         IMDS_CREDENTIALS,
     ),
     trap(
+        "Terraform state",
         &[Match::Ext(".tfstate"), Match::Name("terraform")],
         JSON,
         TFSTATE,
     ),
     trap(
+        "kubeconfig",
         &[
             Match::Name("kubeconfig"),
             Match::Name(".kube"),
@@ -178,9 +219,15 @@ const TRAPS: &[Trap] = &[
         TEXT,
         KUBECONFIG,
     ),
-    trap(&[Match::Name("web.config")], TEXT, WEB_CONFIG),
-    trap(&[Match::Name("flag"), Match::Name("ctf")], TEXT, FLAGS),
+    trap("web.config", &[Match::Name("web.config")], TEXT, WEB_CONFIG),
     trap(
+        "CTF flags",
+        &[Match::Name("flag"), Match::Name("ctf")],
+        TEXT,
+        FLAGS,
+    ),
+    trap(
+        "AWS credentials",
         &[
             Match::Name(".aws"),
             Match::Name("aws"),
@@ -190,6 +237,7 @@ const TRAPS: &[Trap] = &[
         AWS_CREDENTIALS,
     ),
     trap(
+        "Docker configs",
         &[
             Match::Name("docker-compose"),
             Match::Name("dockerfile"),
@@ -200,6 +248,7 @@ const TRAPS: &[Trap] = &[
         DOCKER_COMPOSE,
     ),
     trap(
+        "config files",
         &[
             Match::Name("config"),
             Match::Name("configuration"),
@@ -211,13 +260,27 @@ const TRAPS: &[Trap] = &[
     ),
     // Anything else that only an attacker would type: no plausible file to
     // fake, so say so.
-    trap(&[Match::Name(".."), Match::Ext(".php")], TEXT, TAUNT),
+    trap(
+        "traversal and PHP probes",
+        &[Match::Name(".."), Match::Ext(".php")],
+        TEXT,
+        TAUNT,
+    ),
 ];
 
-const fn trap(patterns: &'static [Match], content_type: &'static str, body: &'static str) -> Trap {
+const fn trap(
+    label: &'static str,
+    patterns: &'static [Match],
+    content_type: &'static str,
+    body: &'static str,
+) -> Trap {
     Trap {
         patterns,
-        bait: Bait { body, content_type },
+        bait: Bait {
+            label,
+            body,
+            content_type,
+        },
     }
 }
 
@@ -1031,6 +1094,24 @@ mod tests {
         for trap in TRAPS {
             assert!(!trap.bait.body.is_empty());
             assert!(!trap.bait.content_type.is_empty());
+        }
+    }
+
+    #[test]
+    fn labels_are_distinct_and_safe_to_publish() {
+        // Labels go verbatim into /honeypot.json, which relies on them needing
+        // no escaping, and two traps sharing one would merge their counts.
+        let mut seen = std::collections::HashSet::new();
+        for trap in TRAPS {
+            let label = trap.bait.label;
+            assert!(!label.is_empty());
+            assert!(
+                label
+                    .chars()
+                    .all(|c| !c.is_control() && c != '"' && c != '\\'),
+                "{label:?} would need escaping"
+            );
+            assert!(seen.insert(label), "{label:?} is used by two traps");
         }
     }
 }

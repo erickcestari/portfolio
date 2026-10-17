@@ -80,6 +80,7 @@ mod tests {
         // A 403 would tell a scanner the path exists and is guarded. Returning
         // 200 with plausible bait keeps it chasing a dead end.
         let res = Response::honeypot(Bait {
+            label: "test",
             body: "root:x:0:0:root:/root:/bin/bash\n",
             content_type: "text/plain",
         });
@@ -93,6 +94,7 @@ mod tests {
     #[test]
     fn honeypot_serves_the_content_type_of_the_file_it_fakes() {
         let res = Response::honeypot(Bait {
+            label: "test",
             body: "<html></html>",
             content_type: "text/html",
         });
@@ -104,6 +106,7 @@ mod tests {
         // Bait is small and sent as-is; compressing it would only add a header
         // that the fake file's own server would not have sent.
         let res = Response::honeypot(Bait {
+            label: "test",
             body: "x",
             content_type: "text/plain",
         });
