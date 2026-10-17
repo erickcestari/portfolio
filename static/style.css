@@ -252,12 +252,13 @@ body::before {
     top: 1rem;
 }
 
-/* ---- Chrome: header & nav (small-caps editorial labels) ---- */
+/* ---- Chrome: header & nav (small-caps editorial labels) ----
+   Scoped to the header: the table of contents is a <nav> too. */
 header {
     margin-bottom: 4rem;
 }
 
-nav {
+header nav {
     display: flex;
     align-items: baseline;
     gap: 1.6rem;
@@ -267,15 +268,15 @@ nav {
     letter-spacing: var(--label-tracking);
 }
 
-nav a {
+header nav a {
     color: var(--muted);
 }
 
-nav a:hover {
+header nav a:hover {
     color: var(--ink);
 }
 
-nav a:first-child {
+header nav a:first-child {
     margin-right: auto;
     color: var(--ink);
 }
@@ -1209,12 +1210,12 @@ footer {
         margin-bottom: 3rem;
     }
 
-    nav {
+    header nav {
         flex-wrap: wrap;
         gap: 0.5rem 1rem;
     }
 
-    nav a:first-child {
+    header nav a:first-child {
         margin-right: 0;
     }
 
