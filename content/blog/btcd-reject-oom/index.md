@@ -4,6 +4,9 @@ date: 2026-09-29
 block: 969228
 description: btcd gave each P2P message type its own size limit, but alert, cfcheckpt, and reject fell back to the global 32 MiB maximum, and the node allocated a buffer of the declared length for each one. Enough peers sending maximum-size messages exhausted RAM and swap until the node was OOM-killed. Here's the oversized-message OOM, and the fix that closed it.
 slug: btcd-reject-oom
+target: btcd
+bug: OOM
+status: fixed in v0.26.0
 ---
 
 [btcd](https://github.com/btcsuite/btcd), the Go full node from btcsuite, accepted `alert`, `cfcheckpt`, and `reject` messages of up to 32 MiB each and allocated a receive buffer of the full declared length for every one. Any peer that completes the version handshake can send them. With btcd's default of 125 peer slots, enough connections streaming maximum-size messages push the node past its RAM and swap until it is killed for running out of memory.
