@@ -63,8 +63,6 @@
     --content-max:        48rem;
     --content-pad:        3rem 1.75rem 3.5rem;
     --content-pad-sm:     1.5rem 1.1rem;   /* mobile */
-    --wide-toc-breakpoint: 1200px;
-    --mobile-breakpoint:   600px;
 
     /* ---- Radius ---- */
     --radius-sm: 2px;
@@ -377,24 +375,12 @@ article > .section-label:first-child {
     margin-top: 0;
 }
 
-/* ---- Home hero: portrait left, name and bio right ---- */
+/* ---- Home hero: portrait left, bio right ---- */
 .hero {
     display: flex;
     align-items: flex-start;
     gap: 2.5rem;
     margin-bottom: 3rem;
-}
-
-.hero .role {
-    font-style: italic;
-    color: var(--muted);
-    font-size: 1.05rem;
-    margin-top: 0.3rem;
-    margin-bottom: 1.75rem;
-}
-
-.hero h1 {
-    margin-bottom: 0;
 }
 
 .hero-text p:last-child {
