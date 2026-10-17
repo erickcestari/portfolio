@@ -24,4 +24,7 @@ jobs:
             git fetch origin master
             git reset --hard origin/master
             cargo build --release
+            rustup target add wasm32-unknown-unknown
+            cargo build -p chip8-wasm --profile wasm --target wasm32-unknown-unknown
+            cp target/wasm32-unknown-unknown/wasm/chip8_wasm.wasm static/chip8/chip8.wasm
             sudo systemctl restart portfolio.service
