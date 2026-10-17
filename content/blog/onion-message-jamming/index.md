@@ -1,6 +1,7 @@
 ---
 title: Onion message jamming in the Lightning Network
 date: 2026-04-16
+block: 945397
 description: BOLT 12 is rolling out everywhere, and the onion message rate limits we ship today protect the node but not the network. Here's the attack, and four ways out.
 slug: onion-message-jamming
 ---
