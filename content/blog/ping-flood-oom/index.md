@@ -4,6 +4,9 @@ date: 2026-08-25
 block: 964066
 description: Core Lightning answered every ping and gossip query even when the peer refused to read the replies. One connection could grow the outgoing queue until the node ran out of memory. Here's the OOM, and the backpressure fix that closed it.
 slug: ping-flood-oom
+target: Core Lightning
+bug: OOM
+status: fixed in v25.09
 ---
 
 I found a critical DoS vulnerability in [Core Lightning (CLN)](https://github.com/ElementsProject/lightning) while writing my own BOLT8 implementation. If I flood the node with `ping` messages asking for the largest possible `pong` and then never read the TCP buffer, the node keeps queueing the `pong` messages until it runs out of memory and gets OOM-killed.

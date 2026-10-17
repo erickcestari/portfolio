@@ -21,8 +21,15 @@ struct Post {
     title: String,
     date: String,
     description: String,
+    /// Ledger columns: what was broken, how, and where it stands now
+    /// ("fixed in v0.14.1", "open"). Empty for posts that are not findings.
+    target: String,
+    bug: String,
+    status: String,
     /// Bitcoin block height on the publication date.
     block: Option<u64>,
+    /// Publication order, 1 for the oldest post.
+    number: usize,
     /// File name of the post's cover art, if the post directory ships one.
     cover: Option<String>,
     html: String,
@@ -89,6 +96,10 @@ pub fn generate(root: &Path) -> Result<usize, String> {
         }
     }
     posts.sort_by(|a, b| b.0.date.cmp(&a.0.date));
+    let total = posts.len();
+    for (i, (post, _)) in posts.iter_mut().enumerate() {
+        post.number = total - i;
+    }
 
     fs::create_dir_all(&out_dir).map_err(|e| format!("create {}: {e}", out_dir.display()))?;
 
@@ -104,11 +115,11 @@ pub fn generate(root: &Path) -> Result<usize, String> {
     let bare_posts: Vec<&Post> = posts.iter().map(|(p, _)| p).collect();
     write(
         &out_dir.join("index.html"),
-        render_list(&list_tmpl, &bare_posts),
+        render_ledger(&list_tmpl, &bare_posts),
     )?;
     write(
         &static_dir.join("index.html"),
-        render_list(&home_tmpl, &bare_posts),
+        render_ledger(&home_tmpl, &bare_posts),
     )?;
     write(&out_dir.join("feed.xml"), render_atom(&bare_posts))?;
     write(&static_dir.join("sitemap.xml"), render_sitemap(&bare_posts))?;
@@ -179,6 +190,9 @@ fn parse_source(
     let mut date = String::new();
     let mut description = String::new();
     let mut slug = default_slug.to_string();
+    let mut target = String::new();
+    let mut bug = String::new();
+    let mut status = String::new();
     let mut block = None;
 
     for line in meta.lines() {
@@ -196,6 +210,9 @@ fn parse_source(
             "date" => date = val,
             "description" => description = val,
             "slug" => slug = val,
+            "target" => target = val,
+            "bug" => bug = val,
+            "status" => status = val,
             "block" => {
                 let height = val
                     .parse::<u64>()
@@ -222,7 +239,11 @@ fn parse_source(
         title,
         date,
         description,
+        target,
+        bug,
+        status,
         block,
+        number: 0,
         cover,
         html: html_out,
         toc,
@@ -598,39 +619,51 @@ fn render_post(tmpl: &str, p: &Post) -> String {
         .replace("{{content}}", &p.html)
 }
 
-/// Posts are sorted newest-first, so runs of equal years are contiguous;
-/// each run opens with a year marker and its own <ul>.
-fn render_list(tmpl: &str, posts: &[&Post]) -> String {
-    let mut items = String::new();
-    let mut current_year = "";
+/// One row per post, newest first, numbered in publication order like entries
+/// in an advisory log: what broke, how, where it stands, and when.
+fn render_ledger(tmpl: &str, posts: &[&Post]) -> String {
+    let mut rows = String::from("<ol class=\"ledger\">\n");
     for p in posts {
-        let year = p.date.get(..4).unwrap_or("");
-        if year != current_year {
-            if !current_year.is_empty() {
-                items.push_str("            </ul>\n");
-            }
-            items.push_str(&format!(
-                "            <h3 class=\"year\">{}</h3>\n            <ul class=\"post-list\">\n",
-                escape_html(year)
+        let mut tags: Vec<String> = [&p.target, &p.bug]
+            .into_iter()
+            .filter(|t| !t.is_empty())
+            .map(|t| format!("<span>{}</span>", escape_html(t)))
+            .collect();
+        if !p.status.is_empty() {
+            let state = if p.status.starts_with("fixed") {
+                "is-fixed"
+            } else {
+                "is-open"
+            };
+            tags.push(format!(
+                "<span class=\"ledger-status {state}\">{}</span>",
+                escape_html(&p.status)
             ));
-            current_year = year;
         }
-        let cover = cover_path(p).map_or(String::new(), |src| {
-            format!("\n                        <img class=\"post-card-cover\" src=\"{src}\" alt=\"\" loading=\"lazy\" decoding=\"async\">")
+        let block = p.block.map_or(String::new(), |h| {
+            format!(
+                "\n                        <span class=\"ledger-block\">block {}</span>",
+                group_thousands(h)
+            )
         });
-        items.push_str(&format!(
-            "                <li>\n                    <a class=\"post-card\" href=\"/blog/{slug}/\">\n                        <span class=\"post-card-text\">\n                            <span class=\"post-card-title\">{title}</span>\n                            <time datetime=\"{iso}\">{date}</time>\n                        </span>{cover}\n                    </a>\n                </li>\n",
+        rows.push_str(&format!(
+            "                <li>
+                    <a class=\"ledger-row\" href=\"/blog/{slug}/\">
+                        <span class=\"ledger-no\">{number:03}</span>
+                        <span class=\"ledger-title\">{title}</span>
+                        <span class=\"ledger-tags\">{tags}</span>
+                        <time class=\"ledger-date\" datetime=\"{date}\">{date}</time>{block}
+                    </a>
+                </li>\n",
             slug = p.slug,
-            cover = cover,
+            number = p.number,
             title = escape_html(&p.title),
-            iso = escape_html(&p.date),
-            date = escape_html(&humanize_date(&p.date)),
+            tags = tags.join(""),
+            date = escape_html(&p.date),
         ));
     }
-    if !current_year.is_empty() {
-        items.push_str("            </ul>");
-    }
-    tmpl.replace("{{items}}", items.trim_end())
+    rows.push_str("            </ol>");
+    tmpl.replace("{{items}}", &rows)
 }
 
 fn render_atom(posts: &[&Post]) -> String {
@@ -720,7 +753,7 @@ mod tests {
     }
 
     const FINDING: &str = "---\ntitle: Crashing a <node>\ndate: 2026-09-30\n\
-block: 969369\n---\nBody.\n";
+target: eclair\nbug: OOM\nstatus: fixed in v0.14.1\nblock: 969369\n---\nBody.\n";
 
     #[test]
     fn heights_are_grouped_by_thousands() {
@@ -732,11 +765,48 @@ block: 969369\n---\nBody.\n";
     }
 
     #[test]
+    fn ledger_fields_come_from_the_frontmatter() {
+        let p = post(FINDING).unwrap();
+        assert_eq!(p.target, "eclair");
+        assert_eq!(p.bug, "OOM");
+        assert_eq!(p.status, "fixed in v0.14.1");
+        assert_eq!(p.block, Some(969_369));
+    }
+
+    #[test]
     fn a_block_that_is_not_a_height_is_refused() {
         let bad = FINDING.replace("block: 969369", "block: soon");
         let Err(e) = post(&bad) else {
             panic!("a non-numeric block must be refused");
         };
         assert!(e.contains("block"));
+    }
+
+    #[test]
+    fn a_ledger_row_shows_number_findings_and_block() {
+        let mut p = post(FINDING).unwrap();
+        p.number = 4;
+        let html = render_ledger("{{items}}", &[&p]);
+        assert!(html.contains("<span class=\"ledger-no\">004</span>"));
+        assert!(html.contains("<span class=\"ledger-title\">Crashing a &lt;node&gt;</span>"));
+        assert!(html.contains("<span>eclair</span><span>OOM</span>"));
+        assert!(html.contains("ledger-status is-fixed\">fixed in v0.14.1"));
+        assert!(html.contains("block 969,369"));
+    }
+
+    #[test]
+    fn an_essay_row_has_no_status_or_block() {
+        let p = post("---\ntitle: Notes\ndate: 2026-01-01\n---\nBody.\n").unwrap();
+        let html = render_ledger("{{items}}", &[&p]);
+        assert!(html.contains("<span class=\"ledger-tags\"></span>"));
+        assert!(!html.contains("ledger-status"));
+        assert!(!html.contains("ledger-block"));
+    }
+
+    #[test]
+    fn anything_but_fixed_is_marked_open() {
+        let open = FINDING.replace("status: fixed in v0.14.1", "status: open");
+        let html = render_ledger("{{items}}", &[&post(&open).unwrap()]);
+        assert!(html.contains("ledger-status is-open\">open"));
     }
 }

@@ -18,6 +18,7 @@
     --rule-soft:    light-dark(#e7e0d3, #262420);
     --code-bg:      light-dark(#efe9de, #1c1a17);
     --tag-bg:       light-dark(#efe9de, #1c1a17);
+    --ok:           light-dark(#4f6b2a, #a9b665);   /* "fixed" in the ledger */
 
     /* ---- Syntax highlighting: warm, low-saturation, same paper family.
        Classes are baked in at build time; see blog-gen/src/highlight.rs ---- */
@@ -344,9 +345,8 @@ h2, h3, h4 {
     scroll-margin-top: 1rem;
 }
 
-/* Small-caps section labels (home sections, list pages, year markers) */
-.section-label,
-.year {
+/* Small-caps section labels (home sections, list pages) */
+.section-label {
     font-family: var(--serif);
     font-size: var(--fs-label);
     font-weight: 600;
@@ -358,13 +358,6 @@ h2, h3, h4 {
     margin-bottom: 1.4rem;
 }
 
-.year {
-    color: var(--ink);
-    margin-top: 2.75rem;
-    margin-bottom: 1rem;
-}
-
-.post-index > .year:first-child,
 article > .section-label:first-child {
     margin-top: 0;
 }
@@ -471,7 +464,7 @@ a:visited {
    suppress the underline used in body text. */
 nav a,
 .toc a,
-.post-list a,
+.ledger-row,
 h1 a, h2 a, h3 a, h4 a,
 .skip-link,
 footer a,
@@ -486,7 +479,7 @@ footer a:hover   { color: var(--ink); }
 
 nav a:visited,
 .toc a:visited,
-.post-list a:visited,
+.ledger-row:visited,
 h1 a:visited, h2 a:visited, h3 a:visited, h4 a:visited {
     color: inherit;
 }
@@ -761,47 +754,45 @@ sup.footnote-reference a {
     padding: 0 0.15em;
 }
 
-/* ---- Post index: year markers with entries hanging under them ----
-   Each entry is one link: title and date, with the cover art below them.
-   Posts without cover art keep the same layout, minus the image. */
-.post-list {
+/* ---- Ledger: every post as one numbered entry, like an advisory log ----
+   Number, title and date on the first line; what broke, how, where it stands
+   and the block height on the second. Cover art stays on the post itself. */
+.ledger {
     list-style: none;
     margin-left: 0;
+    border-bottom: var(--border) solid var(--rule);
 }
 
-.post-list li {
-    margin-bottom: 2.5rem;
+.ledger-row {
+    display: grid;
+    grid-template-columns: 2.75rem 1fr auto;
+    grid-template-areas:
+        "no title date"
+        "no tags  block";
+    column-gap: 1rem;
+    row-gap: 0.3rem;
+    align-items: baseline;
+    padding: 1rem 0;
+    border-top: var(--border) solid var(--rule);
 }
 
-.post-card {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.post-card-cover {
-    width: 100%;
-    aspect-ratio: 1200 / 630;
-    object-fit: cover;
-    border: var(--border) solid var(--rule);
-    border-radius: var(--radius-sm);
-}
-
-.post-card-text {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    min-width: 0;
-}
-
-.post-list time {
+.ledger-no,
+.ledger-tags,
+.ledger-date,
+.ledger-block {
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+    font-variant-numeric: tabular-nums;
     color: var(--muted);
-    font-size: var(--fs-meta);
-    font-style: italic;
-    font-variant-numeric: oldstyle-nums;
 }
 
-.post-card-title {
+.ledger-no    { grid-area: no; }
+.ledger-tags  { grid-area: tags; }
+.ledger-date  { grid-area: date; text-align: right; }
+.ledger-block { grid-area: block; text-align: right; }
+
+.ledger-title {
+    grid-area: title;
     font-size: var(--fs-post-title);
     font-weight: 500;
     color: var(--ink);
@@ -809,7 +800,20 @@ sup.footnote-reference a {
     letter-spacing: -0.012em;
 }
 
-.post-card:hover .post-card-title {
+.ledger-tags > span + span::before {
+    content: "\00b7";
+    margin: 0 0.55em;
+    color: var(--muted);
+}
+
+.ledger-status.is-fixed { color: var(--ok); }
+.ledger-status.is-open  { color: var(--accent); }
+
+.ledger-row:hover .ledger-no {
+    color: var(--accent);
+}
+
+.ledger-row:hover .ledger-title {
     text-decoration: underline;
     text-decoration-color: color-mix(in oklab, var(--accent) 65%, transparent);
     text-underline-offset: 3px;
@@ -1225,13 +1229,21 @@ footer {
         margin-bottom: 2rem;
     }
 
-    .section-label,
-    .year {
+    .section-label {
         margin-top: 2.75rem;
     }
 
-    .post-list li {
-        margin-bottom: 2rem;
+    .ledger-row {
+        grid-template-columns: 2.25rem auto 1fr;
+        grid-template-areas:
+            "no title title"
+            "no tags  tags"
+            "no date  block";
+    }
+
+    .ledger-date,
+    .ledger-block {
+        text-align: left;
     }
 
     .chip8 {
