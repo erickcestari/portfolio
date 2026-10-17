@@ -162,7 +162,16 @@ fn parse_post(
     hl: &Highlighter,
 ) -> Result<Post, String> {
     let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let (meta, body) = split_frontmatter(&raw);
+    parse_source(&raw, default_slug, asset_dir.and_then(find_cover), hl)
+}
+
+fn parse_source(
+    raw: &str,
+    default_slug: &str,
+    cover: Option<String>,
+    hl: &Highlighter,
+) -> Result<Post, String> {
+    let (meta, body) = split_frontmatter(raw);
 
     let mut title = String::new();
     let mut date = String::new();
@@ -204,7 +213,7 @@ fn parse_post(
         title,
         date,
         description,
-        cover: asset_dir.and_then(find_cover),
+        cover,
         html: html_out,
         toc,
         reading_time,
