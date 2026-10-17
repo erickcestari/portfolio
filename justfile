@@ -5,6 +5,7 @@ alias d := delete
 alias f := fmt
 alias r := run
 alias t := test
+alias w := wasm
 
 _default:
     @just --list
@@ -31,11 +32,16 @@ delete item="examples":
 fmt:
     cargo +nightly fmt --all
 
-run:
+run: wasm
     cargo run
 
 test:
     cargo test --workspace
+
+# Build the CHIP-8 WebAssembly module played on the 404 page
+wasm:
+    cargo build -p chip8-wasm --profile wasm --target wasm32-unknown-unknown
+    cp target/wasm32-unknown-unknown/wasm/chip8_wasm.wasm static/chip8/chip8.wasm
 
 _delete-target:
     rm -rf target/
