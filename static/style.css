@@ -1034,7 +1034,8 @@ sup.footnote-reference a {
         margin-bottom: 0.6rem;
     }
 
-    .toc summary::before { content: none; }
+    .toc summary::before,
+    .toc details[open] summary::before { content: none; }
     .toc ul { margin-top: 0; }
 }
 
