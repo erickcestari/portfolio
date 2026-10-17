@@ -81,8 +81,9 @@
     /* ---- Small-caps label voice ---- */
     --label-tracking: 0.14em;
 
-    /* ---- Star field, see "Night sky" below ---- */
+    /* ---- Star field and paper grain, see "Night sky" and "Paper" below ---- */
     --scene-stars:  1;
+    --scene-grain:  0;
 
     /* ---- Theme toggle: the button offers the theme you are *not* in ---- */
     --sun:   block;
@@ -95,6 +96,7 @@
 @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
         --scene-stars: 0;
+        --scene-grain: 1;
         --sun:   none;
         --moon:  block;
     }
@@ -103,6 +105,7 @@
 :root[data-theme="light"] {
     color-scheme: light;
     --scene-stars: 0;
+    --scene-grain: 1;
     --sun:   none;
     --moon:  block;
 }
@@ -110,6 +113,7 @@
 :root[data-theme="dark"] {
     color-scheme: dark;
     --scene-stars: 1;
+    --scene-grain: 0;
     --sun:   block;
     --moon:  none;
 }
@@ -222,6 +226,19 @@ body::before {
 
 @media (prefers-reduced-motion: reduce) {
     html::before { animation: none; }
+}
+
+/* ---- Paper ----
+   The day theme's counterpart to the night sky: a fixed fibre grain under the
+   page, one small noise tile so it costs a few hundred bytes and no requests. */
+html::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -3;
+    pointer-events: none;
+    opacity: calc(var(--scene-grain) * 0.45);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .25 0 0 0 0 .19 0 0 0 0 .11 0 0 0 .5 -.12'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
 }
 
 ::selection {
@@ -1352,6 +1369,7 @@ footer {
         --link:      #000000;
         --code-bg:   #f5f2ec;
         --scene-stars: 0;
+        --scene-grain: 0;
 
         /* Syntax colour does not survive a grayscale printer; comments stay
            lighter and italic, everything else is plain black. */
@@ -1365,7 +1383,7 @@ footer {
         --hl-invalid:  #000000;
     }
 
-    html::before, body::before {
+    html::before, html::after, body::before {
         display: none;
     }
 
