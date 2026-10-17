@@ -25,6 +25,7 @@ jobs:
         uses: dtolnay/rust-toolchain@b95584d8105b9ab200e15821fa671848cf2b7017 # nightly
         with:
           components: clippy, rustfmt
+          targets: wasm32-unknown-unknown
 
       - name: setup just
         uses: extractions/setup-just@e33e0265a09d6d736e2ee1e0eb685ef1de4669ff # v3
@@ -34,3 +35,6 @@ jobs:
 
       - name: check
         run: just check
+
+      - name: build chip8 wasm
+        run: just wasm
