@@ -10,6 +10,8 @@
 
     <link rel="preload" href="/style.css" as="style">
     <link rel="stylesheet" href="/style.css">
+    <link rel="modulepreload" href="/chip8/chip8.js">
+    <link rel="preload" href="/chip8/chip8.wasm" as="fetch" crossorigin>
 </head>
 
 <body>
@@ -17,9 +19,22 @@
 
     <main id="main-content">
         <h2>Block not found. Are you sure this isn't an orphan?</h2>
+
+        <!-- Shown by chip8.js once Tetris is running, so a failed load leaves a plain 404. -->
+        <div class="chip8" id="chip8" hidden>
+            <canvas class="chip8-screen" id="chip8-screen" width="64" height="32" role="img"
+                aria-label="CHIP-8 display running Tetris"></canvas>
+            <div class="chip8-keypad" id="chip8-keypad"></div>
+            <div class="chip8-controls">
+                <label class="chip8-button">Load ROM<input type="file" id="chip8-rom" accept=".ch8,.c8,.rom"></label>
+                <button class="chip8-button" type="button" id="chip8-reset">Reset</button>
+                <span class="chip8-error" id="chip8-error" role="status" aria-live="polite"></span>
+            </div>
+        </div>
     </main>
 
 {{footer}}
+    <script type="module" src="/chip8/chip8.js"></script>
 </body>
 
 </html>

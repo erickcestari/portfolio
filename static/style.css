@@ -1035,6 +1035,126 @@ sup.footnote-reference a {
     .toc ul { margin-top: 0; }
 }
 
+/* ---- CHIP-8 on the 404 page: keypad beside the screen, ROM controls below ---- */
+.chip8 {
+    display: grid;
+    grid-template-columns: 15rem 1fr;
+    grid-template-areas:
+        "keypad screen"
+        "controls controls";
+    gap: 1.25rem;
+    align-items: start;
+    margin-top: 2rem;
+}
+
+/* `display: grid` would otherwise beat the attribute; chip8.js unhides once Tetris runs. */
+.chip8[hidden] {
+    display: none;
+}
+
+.chip8-screen {
+    grid-area: screen;
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 2 / 1;
+    /* chip8.js paints lit pixels in this color; dark pixels stay clear over the background. */
+    color: var(--ink);
+    background: var(--bg-2);
+    border: var(--border) solid var(--rule);
+    border-radius: var(--radius-md);
+    image-rendering: pixelated;
+}
+
+.chip8-keypad {
+    grid-area: keypad;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    /* Held keys must not scroll, zoom or select text on touch screens. */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.chip8-controls {
+    grid-area: controls;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 1rem;
+}
+
+.chip8-key,
+.chip8-button {
+    color: var(--ink-2);
+    background: var(--bg-2);
+    border: var(--border) solid var(--rule);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: border-color var(--transition), color var(--transition), background var(--transition-fast);
+}
+
+.chip8-key:hover,
+.chip8-button:hover {
+    border-color: var(--muted);
+    color: var(--ink);
+}
+
+.chip8-key {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    padding: 0.5rem 0;
+    font-family: var(--mono);
+    font-size: 1rem;
+}
+
+.chip8-key kbd {
+    font-family: var(--mono);
+    font-size: var(--fs-tag);
+    color: var(--muted);
+}
+
+.chip8-key.chip8-down {
+    border-color: var(--accent);
+    background: color-mix(in oklab, var(--accent-warm) 22%, var(--bg-2));
+}
+
+/* Shared by a <label> and a <button>, so pin what the two would otherwise lay out differently. */
+.chip8-button {
+    position: relative;
+    display: inline-block;
+    line-height: var(--lh-snug);
+    padding: 0.45rem 0.9rem;
+    font-family: var(--serif);
+    font-size: var(--fs-nav);
+    text-transform: uppercase;
+    letter-spacing: var(--label-tracking);
+}
+
+/* The label is the visible button; its file input stays in the tab order. */
+.chip8-button input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+}
+
+.chip8-button:has(input:focus-visible) {
+    outline: 2px solid var(--accent-warm);
+    outline-offset: 2px;
+}
+
+.chip8-error {
+    font-family: var(--mono);
+    font-size: var(--fs-mono-md);
+    color: var(--hl-invalid);
+}
+
 /* ---- Footer: provenance block (pgp, bitcoin, email) ---- */
 footer {
     font-family: var(--mono);
@@ -1112,6 +1232,14 @@ footer {
 
     .post-list li {
         margin-bottom: 2rem;
+    }
+
+    .chip8 {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "screen"
+            "keypad"
+            "controls";
     }
 
     .post-cover {
