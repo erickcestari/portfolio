@@ -19,6 +19,9 @@
     --code-bg:      light-dark(#efe9de, #1c1a17);
     --tag-bg:       light-dark(#efe9de, #1c1a17);
     --ok:           light-dark(#4f6b2a, #a9b665);   /* "fixed" in the ledger */
+    /* Chart marks: the dark step sits lower than the text accent so bars stay
+       inside the lightness band that keeps them legible on the dark surface. */
+    --bar:          light-dark(#9c6520, #b88140);
 
     /* ---- Syntax highlighting: warm, low-saturation, same paper family.
        Classes are baked in at build time; see blog-gen/src/highlight.rs ---- */
@@ -1228,6 +1231,74 @@ sup.footnote-reference a {
     color: var(--hl-invalid);
 }
 
+/* ---- Honeypot page: live catches from /honeypot.json ---- */
+.hp-note,
+.hp-status {
+    color: var(--muted);
+    font-style: italic;
+    font-size: var(--fs-meta);
+}
+
+.hp-status:empty {
+    display: none;
+}
+
+.hp-total {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.9rem;
+    margin: 2.75rem 0 0;
+}
+
+.hp-total-value {
+    font-size: 3.4rem;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--ink);
+    font-variant-numeric: lining-nums tabular-nums;
+}
+
+.hp-total-label {
+    color: var(--muted);
+    font-style: italic;
+    font-size: var(--fs-meta);
+}
+
+/* Undo the scrolling block that article tables get, so columns can size. */
+article .hp-table {
+    display: table;
+}
+
+.hp-table th,
+.hp-table td {
+    padding: 0.55rem 0.6rem;
+}
+
+.hp-recent td:first-child,
+.hp-traps td:last-child {
+    white-space: nowrap;
+}
+
+.hp-bar-col {
+    width: 45%;
+}
+
+/* One series, one hue: rounded at the data end, anchored at the baseline. */
+.hp-bar {
+    display: block;
+    height: 8px;
+    min-width: 2px;
+    background: var(--bar);
+    border-radius: 0 4px 4px 0;
+}
+
+.hp-traps td:last-child,
+.hp-traps th:last-child {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
 /* ---- Footer: provenance block (pgp, bitcoin, email) ---- */
 footer {
     font-family: var(--mono);
@@ -1322,6 +1393,10 @@ footer {
     .ledger-date,
     .ledger-block {
         text-align: left;
+    }
+
+    .hp-total-value {
+        font-size: 2.6rem;
     }
 
     .chip8 {
