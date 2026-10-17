@@ -136,6 +136,7 @@ impl FileCache {
                 | "text/plain; charset=utf-8"
                 | "application/javascript"
                 | "application/json"
+                | "application/wasm"
                 | "application/xml"
                 | "image/svg+xml"
         )
@@ -150,7 +151,8 @@ impl FileCache {
     fn cache_control(filename: &str) -> Option<&'static str> {
         match Path::new(filename).extension().and_then(|ext| ext.to_str()) {
             Some(
-                "css" | "js" | "png" | "jpg" | "jpeg" | "webp" | "ico" | "svg" | "woff" | "woff2",
+                "css" | "js" | "wasm" | "png" | "jpg" | "jpeg" | "webp" | "ico" | "svg" | "woff"
+                | "woff2",
             ) => Some("public, max-age=300, must-revalidate"),
             Some("html") => Some("public, max-age=300, must-revalidate"),
             _ => None,
@@ -168,6 +170,7 @@ impl FileCache {
             Some("css") => "text/css",
             Some("js") => "application/javascript",
             Some("json") => "application/json",
+            Some("wasm") => "application/wasm",
             Some("svg") => "image/svg+xml",
             Some("png") => "image/png",
             Some("jpg" | "jpeg") => "image/jpeg",
@@ -297,6 +300,15 @@ mod tests {
             gz.len() < entry.body.len(),
             "compression should shrink text"
         );
+    }
+
+    #[test]
+    fn wasm_is_typed_for_streaming_compile_and_gzipped() {
+        // instantiateStreaming rejects any other type, and nosniff rules out guessing.
+        let (_dir, cache) = load(&[("app.wasm", &[0; 512])]);
+        let entry = cache.get("/app.wasm").unwrap();
+        assert_eq!(entry.content_type, "application/wasm");
+        assert!(entry.body_gzip.is_some());
     }
 
     #[test]
