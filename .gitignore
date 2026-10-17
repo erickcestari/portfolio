@@ -7,3 +7,6 @@
 /static/books.html
 /static/404.html
 /static/sitemap.xml
+
+# Built by `just wasm`.
+/static/chip8/chip8.wasm
