@@ -1,9 +1,8 @@
-use std::sync::Arc;
-
 use crate::{cache::FileCache, Request, Response};
 
+/// One per server, shared by every connection.
 pub struct StaticFileHandler {
-    cache: Arc<FileCache>,
+    cache: FileCache,
 }
 
 /// One line per request: who asked, what they got, what they asked for.
@@ -21,7 +20,7 @@ fn log(request: &Request, outcome: &str) {
 }
 
 impl StaticFileHandler {
-    pub fn new(cache: Arc<FileCache>) -> Self {
+    pub fn new(cache: FileCache) -> Self {
         Self { cache }
     }
 
@@ -89,7 +88,7 @@ mod tests {
             fs::write(&path, contents).unwrap();
         }
         let cache = FileCache::load(dir.path().to_str().unwrap());
-        (dir, StaticFileHandler::new(Arc::new(cache)))
+        (dir, StaticFileHandler::new(cache))
     }
 
     fn request(path: &str, accepts_gzip: bool) -> Request {
