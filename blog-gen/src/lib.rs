@@ -9,6 +9,7 @@ use pulldown_cmark::{
 };
 
 mod highlight;
+mod timeline;
 use highlight::Highlighter;
 
 const SITE_URL: &str = "https://erickcestari.dev";
@@ -350,7 +351,10 @@ fn render_markdown(body: &str, hl: &Highlighter) -> (String, Vec<Heading>) {
         &mut html_out,
         highlight_code_blocks(rewritten, hl).into_iter(),
     );
-    (wrap_images_in_figures(&html_out), headings)
+    (
+        timeline::render(&wrap_images_in_figures(&html_out)),
+        headings,
+    )
 }
 
 /// Swaps each fenced block for pre-highlighted HTML, so pulldown-cmark's own
