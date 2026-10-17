@@ -1214,13 +1214,22 @@ footer {
         margin-bottom: 3rem;
     }
 
+    /* Name and theme toggle share the first line; the links get the second
+       to themselves, so adding a tab never pushes the toggle onto a third. */
     header nav {
         flex-wrap: wrap;
         gap: 0.5rem 1rem;
     }
 
     header nav a:first-child {
+        order: -2;
+        flex-basis: calc(100% - 2.5rem);
         margin-right: 0;
+    }
+
+    .theme-toggle {
+        order: -1;
+        margin-left: auto;
     }
 
     .hero {
