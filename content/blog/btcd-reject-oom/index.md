@@ -1,5 +1,5 @@
 ---
-title: a rejection too large for btcd to survive
+title: A rejection too large for btcd to survive
 date: 2026-09-29
 description: btcd gave each P2P message type its own size limit, but alert, cfcheckpt, and reject fell back to the global 32 MiB maximum, and the node allocated a buffer of the declared length for each one. Enough peers sending maximum-size messages exhausted RAM and swap until the node was OOM-killed. Here's the oversized-message OOM, and the fix that closed it.
 slug: btcd-reject-oom

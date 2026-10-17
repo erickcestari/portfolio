@@ -318,12 +318,6 @@ h1 {
     letter-spacing: -0.025em;
 }
 
-/* Frontmatter titles are written lowercase; display them capitalized. */
-article h1,
-.post-card-title {
-    text-transform: capitalize;
-}
-
 article h1 {
     font-size: var(--fs-post-h1);
     margin-bottom: 0.5rem;
