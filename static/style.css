@@ -956,8 +956,9 @@ sup.footnote-reference a {
     margin-bottom: 2rem;
 }
 
+/* A CSS escape swallows the space after it, hence the doubled one. */
 .reading-time::before {
-    content: " \00b7 ";
+    content: " \00b7  ";
     color: var(--muted);
 }
 
