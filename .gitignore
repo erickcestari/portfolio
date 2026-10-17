@@ -6,6 +6,7 @@
 /static/index.html
 /static/books.html
 /static/404.html
+/static/honeypot.html
 /static/sitemap.xml
 
 # Built by `just wasm`.

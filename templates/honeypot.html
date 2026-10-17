@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Live log of the honeypot built into this site's web server.">
+    <meta name="author" content="Erick Cestari">
+    <link rel="canonical" href="https://erickcestari.dev/honeypot">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Honeypot - Erick Cestari">
+    <meta property="og:description" content="Live log of the honeypot built into this site's web server.">
+    <meta property="og:url" content="https://erickcestari.dev/honeypot">
+    <meta property="og:image" content="https://erickcestari.dev/profile.webp">
+
+    <title>honeypot - erickcestari.dev</title>
+
+    <link rel="icon" href="/favicon.png" sizes="32x32" type="image/png">
+    <link rel="preload" href="/style.css" as="style">
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+{{header}}
+
+    <main id="main-content">
+        <article>
+            <h1>Honeypot</h1>
+            <p>I built a honeypot into this site's web server. When a bot requests something like
+                <code>/.env</code> or <code>/etc/passwd</code>, it gets a fake file with made-up credentials. Below is
+                what it caught since the last restart.</p>
+            <p class="hp-note">I keep only which trap was hit and the /24 (or /48) it came from, in memory.</p>
+
+            <div class="hp" id="hp" hidden>
+                <p class="hp-total"><span class="hp-total-value" id="hp-total">0</span>
+                    <span class="hp-total-label" id="hp-since">requests caught</span></p>
+
+                <h2 class="section-label">What they wanted</h2>
+                <table class="hp-table hp-traps">
+                    <thead><tr><th>trap</th><th class="hp-bar-col">share</th><th>requests</th></tr></thead>
+                    <tbody id="hp-traps"></tbody>
+                </table>
+
+                <h2 class="section-label">Latest</h2>
+                <table class="hp-table hp-recent">
+                    <thead><tr><th>when</th><th>from</th><th>trap</th></tr></thead>
+                    <tbody id="hp-recent"></tbody>
+                </table>
+            </div>
+            <p class="hp-status" id="hp-status" role="status">The log needs JavaScript.</p>
+        </article>
+    </main>
+
+{{footer}}
+    <script>
+        // Everything from /honeypot.json goes in through textContent: the server
+        // only sends fixed labels and prefixes, and the page does not rely on it.
+        const box = document.getElementById("hp");
+        const statusLine = document.getElementById("hp-status");
+        const number = new Intl.NumberFormat("en-US");
+
+        function ago(seconds) {
+            const s = Math.max(0, Math.round(Date.now() / 1000 - seconds));
+            if (s < 60) return `${s}s ago`;
+            if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+            if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+            return `${Math.floor(s / 86400)}d ago`;
+        }
+
+        function row(cells) {
+            const tr = document.createElement("tr");
+            for (const cell of cells) {
+                const td = document.createElement("td");
+                if (cell instanceof Node) td.append(cell); else td.textContent = cell;
+                tr.append(td);
+            }
+            return tr;
+        }
+
+        function render(data) {
+            const since = new Date(data.since * 1000).toISOString().slice(0, 16).replace("T", " ");
+            document.getElementById("hp-total").textContent = number.format(data.total);
+            document.getElementById("hp-since").textContent =
+                `${data.total === 1 ? "request" : "requests"} caught since ${since} UTC`;
+
+            const max = Math.max(1, ...data.traps.map(t => t.count));
+            document.getElementById("hp-traps").replaceChildren(...data.traps.map(t => {
+                const bar = document.createElement("span");
+                bar.className = "hp-bar";
+                bar.style.width = `${(100 * t.count) / max}%`;
+                const tr = row([t.label, bar, number.format(t.count)]);
+                tr.title = `${number.format(t.count)} requests, ${Math.round((100 * t.count) / data.total)}% of all`;
+                return tr;
+            }));
+            document.getElementById("hp-recent").replaceChildren(
+                ...data.recent.map(c => row([ago(c.at), c.from, c.label])));
+
+            box.hidden = false;
+            statusLine.textContent = data.total === 0 ? "Nothing yet." : "";
+        }
+
+        function load() {
+            fetch("/honeypot.json", { cache: "no-store" })
+                .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
+                .then(render)
+                .catch(() => { statusLine.textContent = "Couldn't load the log."; });
+        }
+
+        load();
+        setInterval(() => { if (!document.hidden) load(); }, 30000);
+    </script>
+</body>
+
+</html>

@@ -15,7 +15,7 @@ use highlight::Highlighter;
 const SITE_URL: &str = "https://erickcestari.dev";
 
 /// Pages that are pure layout: no data to interpolate beyond the shared chrome.
-const STATIC_PAGES: [&str; 2] = ["books.html", "404.html"];
+const STATIC_PAGES: [&str; 3] = ["books.html", "404.html", "honeypot.html"];
 
 struct Post {
     slug: String,
@@ -698,7 +698,7 @@ fn render_atom(posts: &[&Post]) -> String {
 
 fn render_sitemap(posts: &[&Post]) -> String {
     let mut urls = String::from(
-        "  <url>\n    <loc>https://erickcestari.dev/</loc>\n    <priority>1.0</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/blog</loc>\n    <priority>0.8</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/books</loc>\n    <priority>0.7</priority>\n  </url>\n",
+        "  <url>\n    <loc>https://erickcestari.dev/</loc>\n    <priority>1.0</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/blog</loc>\n    <priority>0.8</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/books</loc>\n    <priority>0.7</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/honeypot</loc>\n    <priority>0.3</priority>\n  </url>\n",
     );
     for p in posts {
         urls.push_str(&format!(
