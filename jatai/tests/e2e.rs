@@ -329,6 +329,25 @@ async fn feeds_bait_to_credential_scanners() {
 }
 
 #[tokio::test]
+async fn catches_from_every_connection_are_published_live() {
+    let server = TestServer::plain().await;
+    get(server.http, "/.env").await;
+    get(server.http, "/etc/passwd").await;
+
+    // A fresh connection sees what the earlier ones were caught asking for.
+    let log = get(server.http, "/honeypot.json").await;
+    let json = String::from_utf8_lossy(&log.body);
+    assert_eq!(log.status_line(), "HTTP/1.1 200 OK");
+    assert_eq!(
+        log.header("Content-Type").as_deref(),
+        Some("application/json")
+    );
+    assert_eq!(log.header("Cache-Control").as_deref(), Some("no-store"));
+    assert!(json.contains("\"total\":2"), "{json}");
+    assert!(json.contains("\"from\":\"127.0.0.0/24\""), "{json}");
+}
+
+#[tokio::test]
 async fn traversal_is_caught_at_every_level_of_encoding() {
     let server = TestServer::plain().await;
     for attack in [

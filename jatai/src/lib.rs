@@ -1,4 +1,5 @@
 mod cache;
+mod catches;
 mod handler;
 mod honeypot;
 mod request;
