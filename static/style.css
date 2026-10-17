@@ -18,6 +18,10 @@
     --rule-soft:    light-dark(#e7e0d3, #262420);
     --code-bg:      light-dark(#efe9de, #1c1a17);
     --tag-bg:       light-dark(#efe9de, #1c1a17);
+    --ok:           light-dark(#4f6b2a, #a9b665);   /* "fixed" in the ledger */
+    /* Chart marks: the dark step sits lower than the text accent so bars stay
+       inside the lightness band that keeps them legible on the dark surface. */
+    --bar:          light-dark(#9c6520, #b88140);
 
     /* ---- Syntax highlighting: warm, low-saturation, same paper family.
        Classes are baked in at build time; see blog-gen/src/highlight.rs ---- */
@@ -63,8 +67,6 @@
     --content-max:        48rem;
     --content-pad:        3rem 1.75rem 3.5rem;
     --content-pad-sm:     1.5rem 1.1rem;   /* mobile */
-    --wide-toc-breakpoint: 1200px;
-    --mobile-breakpoint:   600px;
 
     /* ---- Radius ---- */
     --radius-sm: 2px;
@@ -82,8 +84,9 @@
     /* ---- Small-caps label voice ---- */
     --label-tracking: 0.14em;
 
-    /* ---- Star field, see "Night sky" below ---- */
+    /* ---- Star field and paper grain, see "Night sky" and "Paper" below ---- */
     --scene-stars:  1;
+    --scene-grain:  0;
 
     /* ---- Theme toggle: the button offers the theme you are *not* in ---- */
     --sun:   block;
@@ -96,6 +99,7 @@
 @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
         --scene-stars: 0;
+        --scene-grain: 1;
         --sun:   none;
         --moon:  block;
     }
@@ -104,6 +108,7 @@
 :root[data-theme="light"] {
     color-scheme: light;
     --scene-stars: 0;
+    --scene-grain: 1;
     --sun:   none;
     --moon:  block;
 }
@@ -111,6 +116,7 @@
 :root[data-theme="dark"] {
     color-scheme: dark;
     --scene-stars: 1;
+    --scene-grain: 0;
     --sun:   block;
     --moon:  none;
 }
@@ -225,6 +231,19 @@ body::before {
     html::before { animation: none; }
 }
 
+/* ---- Paper ----
+   The day theme's counterpart to the night sky: a fixed fibre grain under the
+   page, one small noise tile so it costs a few hundred bytes and no requests. */
+html::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -3;
+    pointer-events: none;
+    opacity: calc(var(--scene-grain) * 0.45);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .25 0 0 0 0 .19 0 0 0 0 .11 0 0 0 .5 -.12'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+
 ::selection {
     background: color-mix(in oklab, var(--accent-warm) 30%, transparent);
     color: var(--ink);
@@ -252,12 +271,13 @@ body::before {
     top: 1rem;
 }
 
-/* ---- Chrome: header & nav (small-caps editorial labels) ---- */
+/* ---- Chrome: header & nav (small-caps editorial labels) ----
+   Scoped to the header: the table of contents is a <nav> too. */
 header {
     margin-bottom: 4rem;
 }
 
-nav {
+header nav {
     display: flex;
     align-items: baseline;
     gap: 1.6rem;
@@ -267,15 +287,15 @@ nav {
     letter-spacing: var(--label-tracking);
 }
 
-nav a {
+header nav a {
     color: var(--muted);
 }
 
-nav a:hover {
+header nav a:hover {
     color: var(--ink);
 }
 
-nav a:first-child {
+header nav a:first-child {
     margin-right: auto;
     color: var(--ink);
 }
@@ -319,12 +339,6 @@ h1 {
     letter-spacing: -0.025em;
 }
 
-/* Frontmatter titles are written lowercase; display them capitalized. */
-article h1,
-.post-card-title {
-    text-transform: capitalize;
-}
-
 article h1 {
     font-size: var(--fs-post-h1);
     margin-bottom: 0.5rem;
@@ -351,9 +365,8 @@ h2, h3, h4 {
     scroll-margin-top: 1rem;
 }
 
-/* Small-caps section labels (home sections, list pages, year markers) */
-.section-label,
-.year {
+/* Small-caps section labels (home sections, list pages) */
+.section-label {
     font-family: var(--serif);
     font-size: var(--fs-label);
     font-weight: 600;
@@ -365,35 +378,16 @@ h2, h3, h4 {
     margin-bottom: 1.4rem;
 }
 
-.year {
-    color: var(--ink);
-    margin-top: 2.75rem;
-    margin-bottom: 1rem;
-}
-
-.post-index > .year:first-child,
 article > .section-label:first-child {
     margin-top: 0;
 }
 
-/* ---- Home hero: portrait left, name and bio right ---- */
+/* ---- Home hero: portrait left, bio right ---- */
 .hero {
     display: flex;
     align-items: flex-start;
     gap: 2.5rem;
     margin-bottom: 3rem;
-}
-
-.hero .role {
-    font-style: italic;
-    color: var(--muted);
-    font-size: 1.05rem;
-    margin-top: 0.3rem;
-    margin-bottom: 1.75rem;
-}
-
-.hero h1 {
-    margin-bottom: 0;
 }
 
 .hero-text p:last-child {
@@ -490,7 +484,7 @@ a:visited {
    suppress the underline used in body text. */
 nav a,
 .toc a,
-.post-list a,
+.ledger-row,
 h1 a, h2 a, h3 a, h4 a,
 .skip-link,
 footer a,
@@ -505,7 +499,7 @@ footer a:hover   { color: var(--ink); }
 
 nav a:visited,
 .toc a:visited,
-.post-list a:visited,
+.ledger-row:visited,
 h1 a:visited, h2 a:visited, h3 a:visited, h4 a:visited {
     color: inherit;
 }
@@ -780,47 +774,45 @@ sup.footnote-reference a {
     padding: 0 0.15em;
 }
 
-/* ---- Post index: year markers with entries hanging under them ----
-   Each entry is one link: title and date, with the cover art below them.
-   Posts without cover art keep the same layout, minus the image. */
-.post-list {
+/* ---- Ledger: every post as one numbered entry, like an advisory log ----
+   Number, title and date on the first line; what broke, how, where it stands
+   and the block height on the second. Cover art stays on the post itself. */
+.ledger {
     list-style: none;
     margin-left: 0;
+    border-bottom: var(--border) solid var(--rule);
 }
 
-.post-list li {
-    margin-bottom: 2.5rem;
+.ledger-row {
+    display: grid;
+    grid-template-columns: 2.75rem 1fr auto;
+    grid-template-areas:
+        "no title date"
+        "no tags  block";
+    column-gap: 1rem;
+    row-gap: 0.3rem;
+    align-items: baseline;
+    padding: 1rem 0;
+    border-top: var(--border) solid var(--rule);
 }
 
-.post-card {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.post-card-cover {
-    width: 100%;
-    aspect-ratio: 1200 / 630;
-    object-fit: cover;
-    border: var(--border) solid var(--rule);
-    border-radius: var(--radius-sm);
-}
-
-.post-card-text {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    min-width: 0;
-}
-
-.post-list time {
+.ledger-no,
+.ledger-tags,
+.ledger-date,
+.ledger-block {
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+    font-variant-numeric: tabular-nums;
     color: var(--muted);
-    font-size: var(--fs-meta);
-    font-style: italic;
-    font-variant-numeric: oldstyle-nums;
 }
 
-.post-card-title {
+.ledger-no    { grid-area: no; }
+.ledger-tags  { grid-area: tags; }
+.ledger-date  { grid-area: date; text-align: right; }
+.ledger-block { grid-area: block; text-align: right; }
+
+.ledger-title {
+    grid-area: title;
     font-size: var(--fs-post-title);
     font-weight: 500;
     color: var(--ink);
@@ -828,7 +820,20 @@ sup.footnote-reference a {
     letter-spacing: -0.012em;
 }
 
-.post-card:hover .post-card-title {
+.ledger-tags > span + span::before {
+    content: "\00b7";
+    margin: 0 0.55em;
+    color: var(--muted);
+}
+
+.ledger-status.is-fixed { color: var(--ok); }
+.ledger-status.is-open  { color: var(--accent); }
+
+.ledger-row:hover .ledger-no {
+    color: var(--accent);
+}
+
+.ledger-row:hover .ledger-title {
     text-decoration: underline;
     text-decoration-color: color-mix(in oklab, var(--accent) 65%, transparent);
     text-underline-offset: 3px;
@@ -955,8 +960,76 @@ sup.footnote-reference a {
     margin-bottom: 2rem;
 }
 
+/* A CSS escape swallows the space after it, hence the doubled one. */
+.block-height::before,
 .reading-time::before {
-    content: " \00b7 ";
+    content: " \00b7  ";
+    color: var(--muted);
+}
+
+.post-meta .block-height a {
+    color: inherit;
+    text-decoration-color: var(--rule);
+}
+
+/* ---- Disclosure timeline ----
+   Built from a post's "## Timeline" list. Each event carries --gap, the log of
+   the days since the previous one, so the track's spacing tells the time. */
+.timeline {
+    list-style: none;
+    margin: 1.25rem 0 1.75rem 0.3rem;
+    padding-left: 1.4rem;
+    border-left: var(--border) solid var(--rule);
+}
+
+.timeline li {
+    --pad: calc(1.3rem + var(--gap, 0) * 0.42rem);
+    position: relative;
+    padding-top: var(--pad);
+    margin-bottom: 0;
+}
+
+.timeline li:first-child {
+    --pad: 0rem;
+}
+
+/* The event dot, centred on the track and on the date's line; the last
+   event is filled. */
+.timeline li::after {
+    content: "";
+    position: absolute;
+    left: calc(-1.4rem - 5px);
+    top: calc(var(--pad) + var(--lh-base) * 0.5em - 4.5px);
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 1.5px solid var(--accent);
+}
+
+.timeline li:last-child::after {
+    background: var(--accent);
+}
+
+.timeline time {
+    font-family: var(--mono);
+    font-size: var(--fs-mono-md);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+.timeline p {
+    margin: 0.1rem 0 0;
+}
+
+/* Sits in the empty stretch of track it measures. */
+.timeline-gap {
+    position: absolute;
+    top: calc(var(--pad) / 2 - var(--lh-base) * 0.5em);
+    left: 0;
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+    font-style: italic;
     color: var(--muted);
 }
 
@@ -1010,8 +1083,10 @@ sup.footnote-reference a {
     color: var(--ink-2);
 }
 
-/* Wide-viewport: float the TOC into the right margin as marginalia */
-@media (min-width: 1200px) {
+/* Wide-viewport: float the TOC into the right margin as marginalia. It starts
+   26rem right of centre and is 15rem wide, so below ~86rem it would run off
+   the edge. */
+@media (min-width: 86rem) {
     .toc {
         position: fixed;
         top: 3rem;
@@ -1031,7 +1106,8 @@ sup.footnote-reference a {
         margin-bottom: 0.6rem;
     }
 
-    .toc summary::before { content: none; }
+    .toc summary::before,
+    .toc details[open] summary::before { content: none; }
     .toc ul { margin-top: 0; }
 }
 
@@ -1155,6 +1231,74 @@ sup.footnote-reference a {
     color: var(--hl-invalid);
 }
 
+/* ---- Honeypot page: live catches from /honeypot.json ---- */
+.hp-note,
+.hp-status {
+    color: var(--muted);
+    font-style: italic;
+    font-size: var(--fs-meta);
+}
+
+.hp-status:empty {
+    display: none;
+}
+
+.hp-total {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.9rem;
+    margin: 2.75rem 0 0;
+}
+
+.hp-total-value {
+    font-size: 3.4rem;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--ink);
+    font-variant-numeric: lining-nums tabular-nums;
+}
+
+.hp-total-label {
+    color: var(--muted);
+    font-style: italic;
+    font-size: var(--fs-meta);
+}
+
+/* Undo the scrolling block that article tables get, so columns can size. */
+article .hp-table {
+    display: table;
+}
+
+.hp-table th,
+.hp-table td {
+    padding: 0.55rem 0.6rem;
+}
+
+.hp-recent td:first-child,
+.hp-traps td:last-child {
+    white-space: nowrap;
+}
+
+.hp-bar-col {
+    width: 45%;
+}
+
+/* One series, one hue: rounded at the data end, anchored at the baseline. */
+.hp-bar {
+    display: block;
+    height: 8px;
+    min-width: 2px;
+    background: var(--bar);
+    border-radius: 0 4px 4px 0;
+}
+
+.hp-traps td:last-child,
+.hp-traps th:last-child {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
 /* ---- Footer: provenance block (pgp, bitcoin, email) ---- */
 footer {
     font-family: var(--mono);
@@ -1209,13 +1353,22 @@ footer {
         margin-bottom: 3rem;
     }
 
-    nav {
+    /* Name and theme toggle share the first line; the links get the second
+       to themselves, so adding a tab never pushes the toggle onto a third. */
+    header nav {
         flex-wrap: wrap;
         gap: 0.5rem 1rem;
     }
 
-    nav a:first-child {
+    header nav a:first-child {
+        order: -2;
+        flex-basis: calc(100% - 2.5rem);
         margin-right: 0;
+    }
+
+    .theme-toggle {
+        order: -1;
+        margin-left: auto;
     }
 
     .hero {
@@ -1225,13 +1378,25 @@ footer {
         margin-bottom: 2rem;
     }
 
-    .section-label,
-    .year {
+    .section-label {
         margin-top: 2.75rem;
     }
 
-    .post-list li {
-        margin-bottom: 2rem;
+    .ledger-row {
+        grid-template-columns: 2.25rem auto 1fr;
+        grid-template-areas:
+            "no title title"
+            "no tags  tags"
+            "no date  block";
+    }
+
+    .ledger-date,
+    .ledger-block {
+        text-align: left;
+    }
+
+    .hp-total-value {
+        font-size: 2.6rem;
     }
 
     .chip8 {
@@ -1279,6 +1444,7 @@ footer {
         --link:      #000000;
         --code-bg:   #f5f2ec;
         --scene-stars: 0;
+        --scene-grain: 0;
 
         /* Syntax colour does not survive a grayscale printer; comments stay
            lighter and italic, everything else is plain black. */
@@ -1292,7 +1458,7 @@ footer {
         --hl-invalid:  #000000;
     }
 
-    html::before, body::before {
+    html::before, html::after, body::before {
         display: none;
     }
 

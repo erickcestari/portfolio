@@ -217,7 +217,7 @@ impl Jatai {
             return;
         }
 
-        let cache = Arc::new(FileCache::load(&self.static_dir));
+        let handler = Arc::new(StaticFileHandler::new(FileCache::load(&self.static_dir)));
 
         let alt_svc: Option<Arc<str>> = self
             .h3_port
@@ -238,17 +238,17 @@ impl Jatai {
         let mut handles = Vec::new();
 
         for listener in self.listeners {
-            let cache = Arc::clone(&cache);
+            let handler = Arc::clone(&handler);
             let alt_svc = alt_svc.clone();
             handles.push(tokio::spawn(async move {
-                Self::accept_loop(listener, cache, alt_svc).await;
+                Self::accept_loop(listener, handler, alt_svc).await;
             }));
         }
 
         if let Some(endpoint) = self.quic_endpoint {
-            let cache = Arc::clone(&cache);
+            let handler = Arc::clone(&handler);
             handles.push(tokio::spawn(async move {
-                Self::accept_quic(endpoint, cache).await;
+                Self::accept_quic(endpoint, handler).await;
             }));
         }
 
@@ -257,15 +257,19 @@ impl Jatai {
         }
     }
 
-    async fn accept_loop(listener: Listener, cache: Arc<FileCache>, alt_svc: Option<Arc<str>>) {
+    async fn accept_loop(
+        listener: Listener,
+        handler: Arc<StaticFileHandler>,
+        alt_svc: Option<Arc<str>>,
+    ) {
         loop {
             match listener.tcp.accept().await {
                 Ok((stream, peer)) => {
-                    let cache = Arc::clone(&cache);
+                    let handler = Arc::clone(&handler);
                     let tls_acceptor = listener.tls_acceptor.clone();
                     let alt_svc = alt_svc.clone();
                     tokio::spawn(async move {
-                        Self::handle_connection(stream, peer, tls_acceptor, cache, alt_svc).await;
+                        Self::handle_connection(stream, peer, tls_acceptor, handler, alt_svc).await;
                     });
                 }
                 Err(e) => eprintln!("Connection failed: {}", e),
@@ -273,9 +277,9 @@ impl Jatai {
         }
     }
 
-    async fn accept_quic(endpoint: quinn::Endpoint, cache: Arc<FileCache>) {
+    async fn accept_quic(endpoint: quinn::Endpoint, handler: Arc<StaticFileHandler>) {
         while let Some(incoming) = endpoint.accept().await {
-            let cache = Arc::clone(&cache);
+            let handler = Arc::clone(&handler);
             tokio::spawn(async move {
                 let connection = match incoming.await {
                     Ok(c) => c,
@@ -285,7 +289,7 @@ impl Jatai {
                     }
                 };
                 let peer = connection.remote_address();
-                Self::serve_h3(connection, cache, peer).await;
+                Self::serve_h3(connection, handler, peer).await;
             });
         }
     }
@@ -294,7 +298,7 @@ impl Jatai {
         stream: TcpStream,
         peer: SocketAddr,
         tls_acceptor: Option<TlsAcceptor>,
-        cache: Arc<FileCache>,
+        handler: Arc<StaticFileHandler>,
         alt_svc: Option<Arc<str>>,
     ) {
         let _ = stream.set_nodelay(true);
@@ -307,13 +311,13 @@ impl Jatai {
                 // they receive HTTP/2 framing they can't parse.
                 let is_h2 = tls_stream.get_ref().1.alpn_protocol() == Some(b"h2");
                 if is_h2 {
-                    Self::serve_h2(tls_stream, cache, peer, alt_svc).await;
+                    Self::serve_h2(tls_stream, handler, peer, alt_svc).await;
                 } else {
-                    Self::serve_h1(tls_stream, cache, peer, alt_svc).await;
+                    Self::serve_h1(tls_stream, handler, peer, alt_svc).await;
                 }
             }
         } else {
-            Self::serve_h1(stream, cache, peer, alt_svc).await;
+            Self::serve_h1(stream, handler, peer, alt_svc).await;
         }
     }
 
@@ -354,7 +358,7 @@ impl Jatai {
 
     async fn serve_h1<S>(
         mut stream: S,
-        cache: Arc<FileCache>,
+        handler: Arc<StaticFileHandler>,
         peer: SocketAddr,
         alt_svc: Option<Arc<str>>,
     ) where
@@ -374,7 +378,6 @@ impl Jatai {
             return;
         };
 
-        let handler = StaticFileHandler::new(Arc::clone(&cache));
         let response = handler.handle(&request);
 
         let encoding_header = if response.gzip {
@@ -419,8 +422,12 @@ impl Jatai {
         let _ = stream.shutdown().await;
     }
 
-    async fn serve_h2<S>(io: S, cache: Arc<FileCache>, peer: SocketAddr, alt_svc: Option<Arc<str>>)
-    where
+    async fn serve_h2<S>(
+        io: S,
+        handler: Arc<StaticFileHandler>,
+        peer: SocketAddr,
+        alt_svc: Option<Arc<str>>,
+    ) where
         S: AsyncRead + AsyncWrite + Unpin,
     {
         let mut connection = match server::handshake(io).await {
@@ -440,10 +447,10 @@ impl Jatai {
                 }
             };
 
-            let cache = Arc::clone(&cache);
+            let handler = Arc::clone(&handler);
             let alt_svc = alt_svc.clone();
             tokio::spawn(async move {
-                Self::handle_h2_request(request, respond, cache, peer, alt_svc);
+                Self::handle_h2_request(request, respond, handler, peer, alt_svc);
             });
         }
     }
@@ -451,12 +458,11 @@ impl Jatai {
     fn handle_h2_request(
         request: http::Request<h2::RecvStream>,
         mut respond: server::SendResponse<Bytes>,
-        cache: Arc<FileCache>,
+        handler: Arc<StaticFileHandler>,
         peer: SocketAddr,
         alt_svc: Option<Arc<str>>,
     ) {
         let req = Request::from_h2(&request, peer);
-        let handler = StaticFileHandler::new(cache);
         let response = handler.handle(&req);
 
         let mut builder = http::Response::builder().status(response.status);
@@ -493,7 +499,7 @@ impl Jatai {
         }
     }
 
-    async fn serve_h3(conn: quinn::Connection, cache: Arc<FileCache>, peer: SocketAddr) {
+    async fn serve_h3(conn: quinn::Connection, handler: Arc<StaticFileHandler>, peer: SocketAddr) {
         let mut h3_conn: h3::server::Connection<h3_quinn::Connection, Bytes> =
             match h3::server::Connection::new(h3_quinn::Connection::new(conn)).await {
                 Ok(c) => c,
@@ -506,11 +512,11 @@ impl Jatai {
         loop {
             match h3_conn.accept().await {
                 Ok(Some(resolver)) => {
-                    let cache = Arc::clone(&cache);
+                    let handler = Arc::clone(&handler);
                     tokio::spawn(async move {
                         match resolver.resolve_request().await {
                             Ok((req, stream)) => {
-                                Self::handle_h3_request(req, stream, cache, peer).await;
+                                Self::handle_h3_request(req, stream, handler, peer).await;
                             }
                             Err(e) => eprintln!("H3 request error: {}", e),
                         }
@@ -525,11 +531,10 @@ impl Jatai {
     async fn handle_h3_request(
         request: http::Request<()>,
         mut stream: h3::server::RequestStream<h3_quinn::BidiStream<Bytes>, Bytes>,
-        cache: Arc<FileCache>,
+        handler: Arc<StaticFileHandler>,
         peer: SocketAddr,
     ) {
         let req = Request::from_h2(&request, peer);
-        let handler = StaticFileHandler::new(cache);
         let response = handler.handle(&req);
 
         let mut builder = http::Response::builder().status(response.status);
@@ -593,13 +598,13 @@ mod tests {
         "203.0.113.7:54321".parse().unwrap()
     }
 
-    fn cache_of(files: &[(&str, &[u8])]) -> (TempDir, Arc<FileCache>) {
+    fn handler_of(files: &[(&str, &[u8])]) -> (TempDir, Arc<StaticFileHandler>) {
         let dir = TempDir::new().unwrap();
         for (rel, contents) in files {
             fs::write(dir.path().join(rel), contents).unwrap();
         }
         let cache = FileCache::load(dir.path().to_str().unwrap());
-        (dir, Arc::new(cache))
+        (dir, Arc::new(StaticFileHandler::new(cache)))
     }
 
     /// Feed `request` through `serve_h1` over an in-memory pipe and return the
@@ -609,10 +614,10 @@ mod tests {
         request: &str,
         alt_svc: Option<Arc<str>>,
     ) -> Vec<u8> {
-        let (_dir, cache) = cache_of(files);
+        let (_dir, handler) = handler_of(files);
         let (mut client, server) = duplex(64 * 1024);
 
-        let serving = tokio::spawn(Jatai::serve_h1(server, cache, test_peer(), alt_svc));
+        let serving = tokio::spawn(Jatai::serve_h1(server, handler, test_peer(), alt_svc));
 
         client.write_all(request.as_bytes()).await.unwrap();
         serving.await.unwrap();
@@ -762,10 +767,10 @@ mod tests {
 
     #[tokio::test]
     async fn h1_closes_without_replying_to_non_utf8_bytes() {
-        let (_dir, cache) = cache_of(&[("index.html", b"home")]);
+        let (_dir, handler) = handler_of(&[("index.html", b"home")]);
         let (mut client, server) = duplex(1024);
 
-        let serving = tokio::spawn(Jatai::serve_h1(server, cache, test_peer(), None));
+        let serving = tokio::spawn(Jatai::serve_h1(server, handler, test_peer(), None));
         client
             .write_all(b"GET /\xff\xfe HTTP/1.1\r\n\r\n")
             .await

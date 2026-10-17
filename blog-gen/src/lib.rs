@@ -9,18 +9,28 @@ use pulldown_cmark::{
 };
 
 mod highlight;
+mod timeline;
 use highlight::Highlighter;
 
 const SITE_URL: &str = "https://erickcestari.dev";
 
 /// Pages that are pure layout: no data to interpolate beyond the shared chrome.
-const STATIC_PAGES: [&str; 2] = ["books.html", "404.html"];
+const STATIC_PAGES: [&str; 3] = ["books.html", "404.html", "honeypot.html"];
 
 struct Post {
     slug: String,
     title: String,
     date: String,
     description: String,
+    /// Ledger columns: what was broken, how, and where it stands now
+    /// ("fixed in v0.14.1", "open"). Empty for posts that are not findings.
+    target: String,
+    bug: String,
+    status: String,
+    /// Bitcoin block height on the publication date.
+    block: Option<u64>,
+    /// Publication order, 1 for the oldest post.
+    number: usize,
     /// File name of the post's cover art, if the post directory ships one.
     cover: Option<String>,
     html: String,
@@ -87,6 +97,10 @@ pub fn generate(root: &Path) -> Result<usize, String> {
         }
     }
     posts.sort_by(|a, b| b.0.date.cmp(&a.0.date));
+    let total = posts.len();
+    for (i, (post, _)) in posts.iter_mut().enumerate() {
+        post.number = total - i;
+    }
 
     fs::create_dir_all(&out_dir).map_err(|e| format!("create {}: {e}", out_dir.display()))?;
 
@@ -102,11 +116,11 @@ pub fn generate(root: &Path) -> Result<usize, String> {
     let bare_posts: Vec<&Post> = posts.iter().map(|(p, _)| p).collect();
     write(
         &out_dir.join("index.html"),
-        render_list(&list_tmpl, &bare_posts),
+        render_ledger(&list_tmpl, &bare_posts),
     )?;
     write(
         &static_dir.join("index.html"),
-        render_list(&home_tmpl, &bare_posts),
+        render_ledger(&home_tmpl, &bare_posts),
     )?;
     write(&out_dir.join("feed.xml"), render_atom(&bare_posts))?;
     write(&static_dir.join("sitemap.xml"), render_sitemap(&bare_posts))?;
@@ -162,12 +176,25 @@ fn parse_post(
     hl: &Highlighter,
 ) -> Result<Post, String> {
     let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let (meta, body) = split_frontmatter(&raw);
+    parse_source(&raw, default_slug, asset_dir.and_then(find_cover), hl)
+}
+
+fn parse_source(
+    raw: &str,
+    default_slug: &str,
+    cover: Option<String>,
+    hl: &Highlighter,
+) -> Result<Post, String> {
+    let (meta, body) = split_frontmatter(raw);
 
     let mut title = String::new();
     let mut date = String::new();
     let mut description = String::new();
     let mut slug = default_slug.to_string();
+    let mut target = String::new();
+    let mut bug = String::new();
+    let mut status = String::new();
+    let mut block = None;
 
     for line in meta.lines() {
         let line = line.trim();
@@ -184,6 +211,15 @@ fn parse_post(
             "date" => date = val,
             "description" => description = val,
             "slug" => slug = val,
+            "target" => target = val,
+            "bug" => bug = val,
+            "status" => status = val,
+            "block" => {
+                let height = val
+                    .parse::<u64>()
+                    .map_err(|_| format!("frontmatter block is not a height: {val:?}"))?;
+                block = Some(height);
+            }
             _ => {}
         }
     }
@@ -204,7 +240,12 @@ fn parse_post(
         title,
         date,
         description,
-        cover: asset_dir.and_then(find_cover),
+        target,
+        bug,
+        status,
+        block,
+        number: 0,
+        cover,
         html: html_out,
         toc,
         reading_time,
@@ -310,7 +351,10 @@ fn render_markdown(body: &str, hl: &Highlighter) -> (String, Vec<Heading>) {
         &mut html_out,
         highlight_code_blocks(rewritten, hl).into_iter(),
     );
-    (wrap_images_in_figures(&html_out), headings)
+    (
+        timeline::render(&wrap_images_in_figures(&html_out)),
+        headings,
+    )
 }
 
 /// Swaps each fenced block for pre-highlighted HTML, so pulldown-cmark's own
@@ -528,7 +572,26 @@ fn cover_path(p: &Post) -> Option<String> {
         .map(|file| format!("/blog/{}/{}", p.slug, file))
 }
 
+/// 969369 -> "969,369", the way block explorers print heights.
+fn group_thousands(n: u64) -> String {
+    let digits = n.to_string();
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
+}
+
 fn render_post(tmpl: &str, p: &Post) -> String {
+    let block = p.block.map_or(String::new(), |h| {
+        format!(
+            "<span class=\"block-height\"><a href=\"https://mempool.space/block/{h}\">block {}</a></span>",
+            group_thousands(h)
+        )
+    });
     let cover = cover_path(p);
     // Decorative: the title right below it already names the post.
     let cover_tag = cover.as_ref().map_or(String::new(), |src| {
@@ -554,44 +617,57 @@ fn render_post(tmpl: &str, p: &Post) -> String {
         .replace("{{description}}", &escape_html(&p.description))
         .replace("{{slug}}", &p.slug)
         .replace("{{url}}", &format!("{}/blog/{}/", SITE_URL, p.slug))
+        .replace("{{block}}", &block)
         .replace("{{toc}}", &p.toc)
         .replace("{{reading_time}}", &p.reading_time.to_string())
         .replace("{{content}}", &p.html)
 }
 
-/// Posts are sorted newest-first, so runs of equal years are contiguous;
-/// each run opens with a year marker and its own <ul>.
-fn render_list(tmpl: &str, posts: &[&Post]) -> String {
-    let mut items = String::new();
-    let mut current_year = "";
+/// One row per post, newest first, numbered in publication order like entries
+/// in an advisory log: what broke, how, where it stands, and when.
+fn render_ledger(tmpl: &str, posts: &[&Post]) -> String {
+    let mut rows = String::from("<ol class=\"ledger\">\n");
     for p in posts {
-        let year = p.date.get(..4).unwrap_or("");
-        if year != current_year {
-            if !current_year.is_empty() {
-                items.push_str("            </ul>\n");
-            }
-            items.push_str(&format!(
-                "            <h3 class=\"year\">{}</h3>\n            <ul class=\"post-list\">\n",
-                escape_html(year)
+        let mut tags: Vec<String> = [&p.target, &p.bug]
+            .into_iter()
+            .filter(|t| !t.is_empty())
+            .map(|t| format!("<span>{}</span>", escape_html(t)))
+            .collect();
+        if !p.status.is_empty() {
+            let state = if p.status.starts_with("fixed") {
+                "is-fixed"
+            } else {
+                "is-open"
+            };
+            tags.push(format!(
+                "<span class=\"ledger-status {state}\">{}</span>",
+                escape_html(&p.status)
             ));
-            current_year = year;
         }
-        let cover = cover_path(p).map_or(String::new(), |src| {
-            format!("\n                        <img class=\"post-card-cover\" src=\"{src}\" alt=\"\" loading=\"lazy\" decoding=\"async\">")
+        let block = p.block.map_or(String::new(), |h| {
+            format!(
+                "\n                        <span class=\"ledger-block\">block {}</span>",
+                group_thousands(h)
+            )
         });
-        items.push_str(&format!(
-            "                <li>\n                    <a class=\"post-card\" href=\"/blog/{slug}/\">\n                        <span class=\"post-card-text\">\n                            <span class=\"post-card-title\">{title}</span>\n                            <time datetime=\"{iso}\">{date}</time>\n                        </span>{cover}\n                    </a>\n                </li>\n",
+        rows.push_str(&format!(
+            "                <li>
+                    <a class=\"ledger-row\" href=\"/blog/{slug}/\">
+                        <span class=\"ledger-no\">{number:03}</span>
+                        <span class=\"ledger-title\">{title}</span>
+                        <span class=\"ledger-tags\">{tags}</span>
+                        <time class=\"ledger-date\" datetime=\"{date}\">{date}</time>{block}
+                    </a>
+                </li>\n",
             slug = p.slug,
-            cover = cover,
+            number = p.number,
             title = escape_html(&p.title),
-            iso = escape_html(&p.date),
-            date = escape_html(&humanize_date(&p.date)),
+            tags = tags.join(""),
+            date = escape_html(&p.date),
         ));
     }
-    if !current_year.is_empty() {
-        items.push_str("            </ul>");
-    }
-    tmpl.replace("{{items}}", items.trim_end())
+    rows.push_str("            </ol>");
+    tmpl.replace("{{items}}", &rows)
 }
 
 fn render_atom(posts: &[&Post]) -> String {
@@ -622,7 +698,7 @@ fn render_atom(posts: &[&Post]) -> String {
 
 fn render_sitemap(posts: &[&Post]) -> String {
     let mut urls = String::from(
-        "  <url>\n    <loc>https://erickcestari.dev/</loc>\n    <priority>1.0</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/blog</loc>\n    <priority>0.8</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/books</loc>\n    <priority>0.7</priority>\n  </url>\n",
+        "  <url>\n    <loc>https://erickcestari.dev/</loc>\n    <priority>1.0</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/blog</loc>\n    <priority>0.8</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/books</loc>\n    <priority>0.7</priority>\n  </url>\n  <url>\n    <loc>https://erickcestari.dev/honeypot</loc>\n    <priority>0.3</priority>\n  </url>\n",
     );
     for p in posts {
         urls.push_str(&format!(
@@ -670,4 +746,71 @@ fn escape_html(s: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn post(source: &str) -> Result<Post, String> {
+        parse_source(source, "slug", None, &Highlighter::new())
+    }
+
+    const FINDING: &str = "---\ntitle: Crashing a <node>\ndate: 2026-09-30\n\
+target: eclair\nbug: OOM\nstatus: fixed in v0.14.1\nblock: 969369\n---\nBody.\n";
+
+    #[test]
+    fn heights_are_grouped_by_thousands() {
+        assert_eq!(group_thousands(0), "0");
+        assert_eq!(group_thousands(999), "999");
+        assert_eq!(group_thousands(1_000), "1,000");
+        assert_eq!(group_thousands(969_369), "969,369");
+        assert_eq!(group_thousands(1_234_567), "1,234,567");
+    }
+
+    #[test]
+    fn ledger_fields_come_from_the_frontmatter() {
+        let p = post(FINDING).unwrap();
+        assert_eq!(p.target, "eclair");
+        assert_eq!(p.bug, "OOM");
+        assert_eq!(p.status, "fixed in v0.14.1");
+        assert_eq!(p.block, Some(969_369));
+    }
+
+    #[test]
+    fn a_block_that_is_not_a_height_is_refused() {
+        let bad = FINDING.replace("block: 969369", "block: soon");
+        let Err(e) = post(&bad) else {
+            panic!("a non-numeric block must be refused");
+        };
+        assert!(e.contains("block"));
+    }
+
+    #[test]
+    fn a_ledger_row_shows_number_findings_and_block() {
+        let mut p = post(FINDING).unwrap();
+        p.number = 4;
+        let html = render_ledger("{{items}}", &[&p]);
+        assert!(html.contains("<span class=\"ledger-no\">004</span>"));
+        assert!(html.contains("<span class=\"ledger-title\">Crashing a &lt;node&gt;</span>"));
+        assert!(html.contains("<span>eclair</span><span>OOM</span>"));
+        assert!(html.contains("ledger-status is-fixed\">fixed in v0.14.1"));
+        assert!(html.contains("block 969,369"));
+    }
+
+    #[test]
+    fn an_essay_row_has_no_status_or_block() {
+        let p = post("---\ntitle: Notes\ndate: 2026-01-01\n---\nBody.\n").unwrap();
+        let html = render_ledger("{{items}}", &[&p]);
+        assert!(html.contains("<span class=\"ledger-tags\"></span>"));
+        assert!(!html.contains("ledger-status"));
+        assert!(!html.contains("ledger-block"));
+    }
+
+    #[test]
+    fn anything_but_fixed_is_marked_open() {
+        let open = FINDING.replace("status: fixed in v0.14.1", "status: open");
+        let html = render_ledger("{{items}}", &[&post(&open).unwrap()]);
+        assert!(html.contains("ledger-status is-open\">open"));
+    }
 }

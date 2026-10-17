@@ -1,9 +1,13 @@
-use std::sync::Arc;
+use crate::{cache::FileCache, catches::Catches, Request, Response};
 
-use crate::{cache::FileCache, Request, Response};
+/// Live honeypot data for the `/honeypot` page. Not a file, so it is answered
+/// before the cache and never cached by the client.
+pub const CATCHES_PATH: &str = "/honeypot.json";
 
+/// Shared by every connection, so the honeypot log sees all of them.
 pub struct StaticFileHandler {
-    cache: Arc<FileCache>,
+    cache: FileCache,
+    catches: Catches,
 }
 
 /// One line per request: who asked, what they got, what they asked for.
@@ -21,15 +25,29 @@ fn log(request: &Request, outcome: &str) {
 }
 
 impl StaticFileHandler {
-    pub fn new(cache: Arc<FileCache>) -> Self {
-        Self { cache }
+    pub fn new(cache: FileCache) -> Self {
+        Self {
+            cache,
+            catches: Catches::new(),
+        }
     }
 
     pub fn handle(&self, request: &Request) -> Response {
         // Check the honeypot first: a matching path never reaches the cache.
         if let Some(bait) = crate::honeypot::bait_for(&request.path) {
             log(request, "honeypot");
+            self.catches.record(bait.label, request.peer);
             return Response::honeypot(bait);
+        }
+
+        if request.path == CATCHES_PATH {
+            log(request, "200");
+            return Response::ok(
+                self.catches.to_json().into_bytes(),
+                "application/json",
+                false,
+            )
+            .with_cache_control("no-store");
         }
 
         if let Some(cached) = self.cache.get(&request.path) {
@@ -89,7 +107,7 @@ mod tests {
             fs::write(&path, contents).unwrap();
         }
         let cache = FileCache::load(dir.path().to_str().unwrap());
-        (dir, StaticFileHandler::new(Arc::new(cache)))
+        (dir, StaticFileHandler::new(cache))
     }
 
     fn request(path: &str, accepts_gzip: bool) -> Request {
@@ -200,6 +218,34 @@ mod tests {
         let res = handler.handle(&request("/%2561bout", false));
         assert_eq!(res.status, 404);
         assert_eq!(res.body, b"missing");
+    }
+
+    #[test]
+    fn caught_attacks_show_up_in_the_live_log() {
+        let (_dir, handler) = handler(&[("index.html", b"home")]);
+        handler.handle(&request("/.env", false));
+        handler.handle(&request("/index.html", false));
+
+        let res = handler.handle(&request(CATCHES_PATH, true));
+        let json = String::from_utf8(res.body).unwrap();
+        assert_eq!(res.status, 200);
+        assert_eq!(res.content_type, "application/json");
+        assert_eq!(res.cache_control, Some("no-store"));
+        assert!(
+            json.contains("\"total\":1"),
+            "only the attack counts: {json}"
+        );
+        assert!(json.contains("\"label\":\".env files\""));
+        assert!(json.contains("\"from\":\"203.0.113.0/24\""));
+    }
+
+    #[test]
+    fn the_live_log_never_echoes_what_the_scanner_typed() {
+        let (_dir, handler) = handler(&[]);
+        handler.handle(&request("/<script>alert(1)</script>/.env", false));
+        let json = String::from_utf8(handler.handle(&request(CATCHES_PATH, false)).body).unwrap();
+        assert!(!json.contains("script"));
+        assert!(json.contains("\"label\":\".env files\""));
     }
 
     #[test]
