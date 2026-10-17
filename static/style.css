@@ -952,6 +952,67 @@ sup.footnote-reference a {
     text-decoration-color: var(--rule);
 }
 
+/* ---- Disclosure timeline ----
+   Built from a post's "## Timeline" list. Each event carries --gap, the log of
+   the days since the previous one, so the track's spacing tells the time. */
+.timeline {
+    list-style: none;
+    margin: 1.25rem 0 1.75rem 0.3rem;
+    padding-left: 1.4rem;
+    border-left: var(--border) solid var(--rule);
+}
+
+.timeline li {
+    --pad: calc(1.3rem + var(--gap, 0) * 0.42rem);
+    position: relative;
+    padding-top: var(--pad);
+    margin-bottom: 0;
+}
+
+.timeline li:first-child {
+    --pad: 0rem;
+}
+
+/* The event dot, centred on the track and on the date's line; the last
+   event is filled. */
+.timeline li::after {
+    content: "";
+    position: absolute;
+    left: calc(-1.4rem - 5px);
+    top: calc(var(--pad) + var(--lh-base) * 0.5em - 4.5px);
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 1.5px solid var(--accent);
+}
+
+.timeline li:last-child::after {
+    background: var(--accent);
+}
+
+.timeline time {
+    font-family: var(--mono);
+    font-size: var(--fs-mono-md);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+.timeline p {
+    margin: 0.1rem 0 0;
+}
+
+/* Sits in the empty stretch of track it measures. */
+.timeline-gap {
+    position: absolute;
+    top: calc(var(--pad) / 2 - var(--lh-base) * 0.5em);
+    left: 0;
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+    font-style: italic;
+    color: var(--muted);
+}
+
 /* ---- Table of contents ---- */
 .toc {
     background: var(--bg-2);
