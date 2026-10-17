@@ -21,6 +21,8 @@ struct Post {
     title: String,
     date: String,
     description: String,
+    /// Bitcoin block height on the publication date.
+    block: Option<u64>,
     /// File name of the post's cover art, if the post directory ships one.
     cover: Option<String>,
     html: String,
@@ -177,6 +179,7 @@ fn parse_source(
     let mut date = String::new();
     let mut description = String::new();
     let mut slug = default_slug.to_string();
+    let mut block = None;
 
     for line in meta.lines() {
         let line = line.trim();
@@ -193,6 +196,12 @@ fn parse_source(
             "date" => date = val,
             "description" => description = val,
             "slug" => slug = val,
+            "block" => {
+                let height = val
+                    .parse::<u64>()
+                    .map_err(|_| format!("frontmatter block is not a height: {val:?}"))?;
+                block = Some(height);
+            }
             _ => {}
         }
     }
@@ -213,6 +222,7 @@ fn parse_source(
         title,
         date,
         description,
+        block,
         cover,
         html: html_out,
         toc,
@@ -537,7 +547,26 @@ fn cover_path(p: &Post) -> Option<String> {
         .map(|file| format!("/blog/{}/{}", p.slug, file))
 }
 
+/// 969369 -> "969,369", the way block explorers print heights.
+fn group_thousands(n: u64) -> String {
+    let digits = n.to_string();
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
+}
+
 fn render_post(tmpl: &str, p: &Post) -> String {
+    let block = p.block.map_or(String::new(), |h| {
+        format!(
+            "<span class=\"block-height\"><a href=\"https://mempool.space/block/{h}\">block {}</a></span>",
+            group_thousands(h)
+        )
+    });
     let cover = cover_path(p);
     // Decorative: the title right below it already names the post.
     let cover_tag = cover.as_ref().map_or(String::new(), |src| {
@@ -563,6 +592,7 @@ fn render_post(tmpl: &str, p: &Post) -> String {
         .replace("{{description}}", &escape_html(&p.description))
         .replace("{{slug}}", &p.slug)
         .replace("{{url}}", &format!("{}/blog/{}/", SITE_URL, p.slug))
+        .replace("{{block}}", &block)
         .replace("{{toc}}", &p.toc)
         .replace("{{reading_time}}", &p.reading_time.to_string())
         .replace("{{content}}", &p.html)
@@ -679,4 +709,34 @@ fn escape_html(s: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn post(source: &str) -> Result<Post, String> {
+        parse_source(source, "slug", None, &Highlighter::new())
+    }
+
+    const FINDING: &str = "---\ntitle: Crashing a <node>\ndate: 2026-09-30\n\
+block: 969369\n---\nBody.\n";
+
+    #[test]
+    fn heights_are_grouped_by_thousands() {
+        assert_eq!(group_thousands(0), "0");
+        assert_eq!(group_thousands(999), "999");
+        assert_eq!(group_thousands(1_000), "1,000");
+        assert_eq!(group_thousands(969_369), "969,369");
+        assert_eq!(group_thousands(1_234_567), "1,234,567");
+    }
+
+    #[test]
+    fn a_block_that_is_not_a_height_is_refused() {
+        let bad = FINDING.replace("block: 969369", "block: soon");
+        let Err(e) = post(&bad) else {
+            panic!("a non-numeric block must be refused");
+        };
+        assert!(e.contains("block"));
+    }
 }

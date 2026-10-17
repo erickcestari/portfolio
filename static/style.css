@@ -937,9 +937,15 @@ sup.footnote-reference a {
 }
 
 /* A CSS escape swallows the space after it, hence the doubled one. */
+.block-height::before,
 .reading-time::before {
     content: " \00b7  ";
     color: var(--muted);
+}
+
+.post-meta .block-height a {
+    color: inherit;
+    text-decoration-color: var(--rule);
 }
 
 /* ---- Table of contents ---- */

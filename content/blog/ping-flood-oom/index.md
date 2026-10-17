@@ -1,6 +1,7 @@
 ---
 title: Crashing a Lightning node with a flood of pings
 date: 2026-08-25
+block: 964066
 description: Core Lightning answered every ping and gossip query even when the peer refused to read the replies. One connection could grow the outgoing queue until the node ran out of memory. Here's the OOM, and the backpressure fix that closed it.
 slug: ping-flood-oom
 ---

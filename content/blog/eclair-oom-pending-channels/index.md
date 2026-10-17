@@ -1,6 +1,7 @@
 ---
 title: Crashing an eclair node with unfunded channels
 date: 2026-09-30
+block: 969369
 description: eclair opened a channel for any peer as fundee, derived its id from a funding transaction the peer named but never had to broadcast, and wrote it to disk. Two id-tracking bugs let one connection bury an unbounded number of these never-funded channels past the rate limiter until the node ran out of memory, then crash-looped on every restart. Here's the free-channel flood, and the fix that closed it.
 slug: eclair-oom-pending-channels
 ---
