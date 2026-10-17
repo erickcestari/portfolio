@@ -1011,8 +1011,10 @@ sup.footnote-reference a {
     color: var(--ink-2);
 }
 
-/* Wide-viewport: float the TOC into the right margin as marginalia */
-@media (min-width: 1200px) {
+/* Wide-viewport: float the TOC into the right margin as marginalia. It starts
+   26rem right of centre and is 15rem wide, so below ~86rem it would run off
+   the edge. */
+@media (min-width: 86rem) {
     .toc {
         position: fixed;
         top: 3rem;
