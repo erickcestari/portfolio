@@ -5,9 +5,12 @@
 //! First match wins, which is why specific traps are listed before generic
 //! ones: `/config/.env` is an env-file hunt, not a config-file hunt.
 //!
-//! The bait is fabricated. Every credential here is random noise in the right
-//! shape, valid nowhere, so a scanner that harvests it spends its time on
-//! dead ends instead of on the real internet.
+//! The bait is fabricated. Every credential here is random but in its real
+//! format, valid nowhere, so a scanner that harvests it spends its time on
+//! dead ends instead of on the real internet. The files tell one story about
+//! one company, so a secret reappears wherever a real leak would repeat it.
+//! Its domains resolve nowhere and `.internal` never will, so following the
+//! bait cannot land a scanner on someone else's servers.
 
 /// What a caught request is answered with.
 #[derive(Clone, Copy)]
@@ -284,619 +287,724 @@ const fn trap(
     }
 }
 
-const PASSWD: &str = "root:x:0:0:root:/root:/bin/bash\n\
-daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n\
-bin:x:2:2:bin:/bin:/usr/sbin/nologin\n\
-sys:x:3:3:sys:/dev:/usr/sbin/nologin\n\
-sync:x:4:65534:sync:/bin:/bin/sync\n\
-games:x:5:60:games:/usr/games:/usr/sbin/nologin\n\
-man:x:6:12:man:/var/cache/man:/usr/sbin/nologin\n\
-lp:x:7:7:lp:/var/spool/lpd:/usr/sbin/nologin\n\
-mail:x:8:8:mail:/var/mail:/usr/sbin/nologin\n\
-news:x:9:9:news:/var/spool/news:/usr/sbin/nologin\n\
-uucp:x:10:10:uucp:/var/spool/uucp:/usr/sbin/nologin\n\
-proxy:x:13:13:proxy:/bin:/usr/sbin/nologin\n\
-www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin\n\
-backup:x:34:34:backup:/var/backups:/usr/sbin/nologin\n\
-list:x:38:38:Mailing List Manager:/var/list:/usr/sbin/nologin\n\
-irc:x:39:39:ircd:/run/ircd:/usr/sbin/nologin\n\
-nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin\n\
-_apt:x:100:65534::/nonexistent:/usr/sbin/nologin\n\
-systemd-network:x:101:102:systemd Network Management,,,:/run/systemd:/usr/sbin/nologin\n\
-systemd-resolve:x:102:103:systemd Resolver,,,:/run/systemd:/usr/sbin/nologin\n\
-messagebus:x:103:105::/nonexistent:/usr/sbin/nologin\n\
-systemd-timesync:x:104:106:systemd Time Synchronization,,,:/run/systemd:/usr/sbin/nologin\n\
-syslog:x:105:111::/nonexistent:/usr/sbin/nologin\n\
-uuidd:x:106:112::/run/uuidd:/usr/sbin/nologin\n\
-tcpdump:x:107:113::/nonexistent:/usr/sbin/nologin\n\
-sshd:x:108:65534::/run/sshd:/usr/sbin/nologin\n\
-pollinate:x:109:1::/var/cache/pollinate:/bin/false\n\
-landscape:x:110:114::/var/lib/landscape:/usr/sbin/nologin\n\
-postgres:x:111:117:PostgreSQL administrator,,,:/var/lib/postgresql:/bin/bash\n\
-redis:x:112:118::/var/lib/redis:/usr/sbin/nologin\n\
-lxd:x:999:100::/var/snap/lxd/common/lxd:/bin/false\n\
-ubuntu:x:1000:1000:Ubuntu:/home/ubuntu:/bin/bash\n\
-deploy:x:1001:1001:Deploy User,,,:/home/deploy:/bin/bash\n";
+// Raw strings on purpose: a `\` line continuation strips the next line's
+// leading whitespace, which flattens the YAML and SQL bait into nonsense.
 
-const SHADOW: &str = "root:$y$j9T$T0D8jVIrqN1hd9syOjBmYj$Fltwx0DfPZDZokx01MsfiL8PW951DKyhlJsxg0OJ.:19847:0:99999:7:::\n\
-daemon:*:19835:0:99999:7:::\n\
-bin:*:19835:0:99999:7:::\n\
-sys:*:19835:0:99999:7:::\n\
-sync:*:19835:0:99999:7:::\n\
-games:*:19835:0:99999:7:::\n\
-man:*:19835:0:99999:7:::\n\
-www-data:*:19835:0:99999:7:::\n\
-backup:*:19835:0:99999:7:::\n\
-nobody:*:19835:0:99999:7:::\n\
-systemd-network:!*:19835::::::\n\
-systemd-resolve:!*:19835::::::\n\
-messagebus:!:19835::::::\n\
-syslog:!:19835::::::\n\
-sshd:!:19841::::::\n\
-postgres:$y$j9T$Bu1sDhGknatuRyC7Mmj2Y5$KBjq6epj89WddJZwtQFI12OqqvqQIjAamjSkjfK.:19844:0:99999:7:::\n\
-redis:!:19844::::::\n\
-ubuntu:$y$j9T$SkNLKkfXhHjOGFQPvqzobP$26Hh92ygu4Swmk46eqqxaYuJ3nE3BrYqdKejKLiR.:19851:0:99999:7:::\n\
-deploy:$y$j9T$nAh7Tmq9tHSVPArHXekwVM$6cYePZpn9Ud3LEUnYgdd2Xl4VBN6BddTkm5hgKZ.:19849:0:99999:7:::\n";
+const PASSWD: &str = r#"root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+sys:x:3:3:sys:/dev:/usr/sbin/nologin
+sync:x:4:65534:sync:/bin:/bin/sync
+games:x:5:60:games:/usr/games:/usr/sbin/nologin
+man:x:6:12:man:/var/cache/man:/usr/sbin/nologin
+lp:x:7:7:lp:/var/spool/lpd:/usr/sbin/nologin
+mail:x:8:8:mail:/var/mail:/usr/sbin/nologin
+news:x:9:9:news:/var/spool/news:/usr/sbin/nologin
+uucp:x:10:10:uucp:/var/spool/uucp:/usr/sbin/nologin
+proxy:x:13:13:proxy:/bin:/usr/sbin/nologin
+www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+backup:x:34:34:backup:/var/backups:/usr/sbin/nologin
+list:x:38:38:Mailing List Manager:/var/list:/usr/sbin/nologin
+irc:x:39:39:ircd:/run/ircd:/usr/sbin/nologin
+nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
+_apt:x:100:65534::/nonexistent:/usr/sbin/nologin
+systemd-network:x:101:102:systemd Network Management,,,:/run/systemd:/usr/sbin/nologin
+systemd-resolve:x:102:103:systemd Resolver,,,:/run/systemd:/usr/sbin/nologin
+messagebus:x:103:105::/nonexistent:/usr/sbin/nologin
+systemd-timesync:x:104:106:systemd Time Synchronization,,,:/run/systemd:/usr/sbin/nologin
+syslog:x:105:111::/nonexistent:/usr/sbin/nologin
+uuidd:x:106:112::/run/uuidd:/usr/sbin/nologin
+tcpdump:x:107:113::/nonexistent:/usr/sbin/nologin
+sshd:x:108:65534::/run/sshd:/usr/sbin/nologin
+pollinate:x:109:1::/var/cache/pollinate:/bin/false
+landscape:x:110:114::/var/lib/landscape:/usr/sbin/nologin
+postgres:x:111:117:PostgreSQL administrator,,,:/var/lib/postgresql:/bin/bash
+redis:x:112:118::/var/lib/redis:/usr/sbin/nologin
+lxd:x:999:100::/var/snap/lxd/common/lxd:/bin/false
+ubuntu:x:1000:1000:Ubuntu:/home/ubuntu:/bin/bash
+deploy:x:1001:1001:Deploy User,,,:/home/deploy:/bin/bash
+"#;
 
-const DOTENV: &str = "APP_NAME=acme-payments\n\
-APP_ENV=production\n\
-APP_DEBUG=false\n\
-APP_URL=https://api.acme-internal.com\n\
-\n\
-# Database\n\
-DATABASE_URL=postgresql://payments_prod:xK7mN2pQ9rS5tV8w@db-prod-01.c9x4h2m5k6n3.us-east-1.rds.amazonaws.com:5432/payments\n\
-DB_POOL_SIZE=25\n\
-DB_SSL_MODE=require\n\
-\n\
-# Cache and queue\n\
-REDIS_URL=redis://:R3d1sPr0d2024Secure@prod-redis-001.c9x4h2.ng.0001.use1.cache.amazonaws.com:6379/0\n\
-QUEUE_CONNECTION=redis\n\
-\n\
-# Application secrets\n\
-SECRET_KEY_BASE=5cc207f8e44fa3f20763ace517a0b03a1833eb95b385661bdede0bc27fa009be\n\
-JWT_SECRET=659758927b438766790f27089964f08768e35ee9148bf3b479e5df4b1223800c\n\
-SESSION_LIFETIME=120\n\
-\n\
-# AWS\n\
-AWS_ACCESS_KEY_ID=AKIA4XZQ7YWNP2K6R3TF\n\
-AWS_SECRET_ACCESS_KEY=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\n\
-AWS_DEFAULT_REGION=us-east-1\n\
-AWS_BUCKET=acme-payments-prod-assets\n\
-\n\
-# Stripe\n\
-STRIPE_KEY=pk_live_51NxK2mHZq8VbRtY4wLpGdCfEjMnQaSvTuXyZ3B7c\n\
-STRIPE_SECRET=sk_live_51NxK2mHZq8VbRtY4wLpGdCfEjMnQaSvTuXyZ3B7c9D2eF5gH8jK1lM4n\n\
-STRIPE_WEBHOOK_SECRET=whsec_dee1be26265143dc4834d273d9b569b95b06de16\n\
-\n\
-# Mail\n\
-MAIL_MAILER=smtp\n\
-MAIL_HOST=email-smtp.us-east-1.amazonaws.com\n\
-MAIL_PORT=587\n\
-MAIL_USERNAME=AKIA6TDPQ4XNVK8MR2WY\n\
-MAIL_PASSWORD=aJ2mV2zqwm59Ddn7jI00kLa99bhvRF8THy2Cq1r8\n\
-SENDGRID_API_KEY=SG.1K7pxPWeILf8N6gkbER2WO.ECCxIKa5rHWWcLWTuESvyjS9xrUgUTtutbX652Gp5D\n\
-\n\
-# Third party\n\
-GITHUB_TOKEN=ghp_v4M5a0fYACLmGYHy2KwPSaJErszbIroEVh1K\n\
-SLACK_BOT_TOKEN=xoxb-2847193056-4917283640-tN0pEVfzl2TVRgHmHFHTZgjo\n\
-OPENAI_API_KEY=sk-proj-Y7IiFNnyg7JQfE5QTDxROia8HwPWsXHBLcI09RVOpsrFCjSC\n\
-TWILIO_ACCOUNT_SID=AC85a4e4d181764db294a1032198abee1c\n\
-TWILIO_AUTH_TOKEN=f3f0e1dedf3b5669cf5514bebff347ee\n\
-SENTRY_DSN=https://900e1acae780c1716a907ef94c02840b@o447951.ingest.sentry.io/4504218472\n";
+const SHADOW: &str = r#"root:$y$j9T$PoYbxRToVsr5KDZRq0/y5D$3oWsqygXgipse64AePMeZSqB/e5rxzhrsj2zyMNRGHj:19847:0:99999:7:::
+daemon:*:19835:0:99999:7:::
+bin:*:19835:0:99999:7:::
+sys:*:19835:0:99999:7:::
+sync:*:19835:0:99999:7:::
+games:*:19835:0:99999:7:::
+man:*:19835:0:99999:7:::
+www-data:*:19835:0:99999:7:::
+backup:*:19835:0:99999:7:::
+nobody:*:19835:0:99999:7:::
+systemd-network:!*:19835::::::
+systemd-resolve:!*:19835::::::
+messagebus:!:19835::::::
+syslog:!:19835::::::
+sshd:!:19841::::::
+postgres:$y$j9T$DWPjogR0UIbYAkYwuFrr9X$jd/ys1gAH0r9Kw1gwIxrkVhG3ut.aZuSL6QAoSjDPwP:19844:0:99999:7:::
+redis:!:19844::::::
+ubuntu:$y$j9T$6xzgubtdhLayyU5AHmP1Cw$rWwOpK6J.5pH5erlemU/CoekfONNImZb4m53yHLtG3k:19851:0:99999:7:::
+deploy:$y$j9T$dhci1jZjCAI2XV5Nqd9Shr$TdytPLXKaUbZUZyJX4RTTBpWoPCwiGwcclva1IWUL93:19849:0:99999:7:::
+"#;
 
-const AUTHORIZED_KEYS: &str = "# Managed by Ansible, do not edit by hand\n\
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH2vK8mQpR4tN7wXzL3bYcE9fG1jH5kM8nP0qS6uV2xA deploy@ci-runner-01\n\
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB9dR2fT5hK8mN1pQ4sV7wY0zC3eF6gJ9kL2nM5oP8rB ops@bastion-prod\n\
-ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDT0ToaFJ2CI6m3s8X8N1smg6JfrhXpnuMzWpagWDVEoQ28SbRf2rW32eqTEafnFGbtmJsnSgdRL7zTm8zt0gwqtCSlueQz0P550Lqfuj0GExeTWPYHMxHn3tlm71lOWOKXlikWpoQWY6DAEg0W4vrRdoPGu5NrVuL93Gcb2NkIFqVuzVOYqYh4fcr43GHorM76C2x33p0MPUZgfKrJWPsEuS98ZyNsnvjBXk7KVWkmqGAsZYWlJW76rajTf1SeIyxh1YNv4TzHg1ic4T ubuntu@jump-host\n";
+const DOTENV: &str = r#"APP_NAME=brindle-payments
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://api.brindlepay.com
 
-const SSH_KEY: &str = "-----BEGIN OPENSSH PRIVATE KEY-----\n\
-b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn\n\
-NhAAAAAwEAAQAAAYEA0ToaFJ2CI6m3s8X8N1smg6JfrhXpnuMzWpagWDVEoQ28SbRf2rW3\n\
-2eqTEafnFGbtmJsnSgdRL7zTm8zt0gwqtCSlueQz0P550Lqfu+j0GEx/eTWPYHMxHn3tlm\n\
-71lOWOKXlikWpoQWY6DAEg0W4vrRdoPG+u5NrV/uL93Gcb2NkIFqVuzVOYqYh4fcr43GHo\n\
-rM76C2x33p0MPUZgfKrJWPsEuS98ZyNsn+vjBXk7KVWk+mq/GAs+ZYW/lJW76rajTf1SeI\n\
-yx+h1YNv4TzHg1ic4TQdoYDYD/F2ROP+JAYcY9rFbOgQzwh2LVNnEJ9TDHisyfVoUoRlb+\n\
-+nCS5VKhLdexBkMz2dQwp0k27WeL5t0IFmPypMROyd3Y5RudnPHMeP9/Gz0BB/5VfOn3b2\n\
-kA/3novqsSmLL933AVtVDaRYLMaN7jOLF/sUDtc0ko/zerCIFD7kjthdHFQrRb1roZ8/ms\n\
-WcnHZAM54wAUlUfUap9rgEsJ0zB8Y/ztxPSdXkpLRD+CtimMkgH4WAhSZSgKaVkyS0Lc0b\n\
-Ufmzz/4+ESxGfhiGWQhBPd7q34/Z6Pie78UXIIt97BhJ/K0UFT7LF5RYYIEuqybyn4n39+\n\
-tD17xlNCyM4IdlljTzqXascbefV9vqRiuW5EVLPA5j3gHQP8SmxkSE8epcj+j3osqp+H0p\n\
-xWgIcsKHMnln+mOGlzHzAB5dnrs8GJW/+j8lykkmVpftQpeDZ0YTRybnVz1PnbzEM9GbCt\n\
-zsOmcO5P/Sc75CPiLQmE9SyunMIzYefuJlecVlClZgOn+gvLX5+hyPGNvposgjJIqD4bOh\n\
-hs8tbtSXeCD9ndwE5+GVEfaXMBu17K5MOp3t/v4R4/+Uy0jbUgQWUh2ZGq4VB65HPfowts\n\
-BVCuyYrdLyEYYcvsjcvMTLEmPx0HojlIK5GAOR8ILwAAAAAEbm9uZQECAwQFBgcICQoLDA\n\
-0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BB\n\
-QkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dX\n\
-Z3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmq\n\
-q6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t\n\
-/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+foAAAATZGVwbG95QGNpLXJ1bm5lci0wMQEC\n\
------END OPENSSH PRIVATE KEY-----\n";
+# Database
+DATABASE_URL=postgresql://payments_prod:gDQSnmQTAqjmMEyG9qLZJtU6@db-prod-01.9nlp73y6cgfg.us-east-1.rds.amazonaws.com:5432/payments
+DB_POOL_SIZE=25
+DB_SSL_MODE=require
 
-const GIT_CREDENTIALS: &str =
-    "https://deploy-bot:ghp_v4M5a0fYACLmGYHy2KwPSaJErszbIroEVh1K@github.com\n\
-https://acme-ci:glpat-tN0pEVfzl2TVRgHmHFHT@gitlab.acme-internal.com\n";
+# Cache and queue
+REDIS_URL=redis://:rwZHvZ9IbOzEFnPiJOoYVeahWUhcTmac@prod-redis-001.xd2r94.ng.0001.use1.cache.amazonaws.com:6379/0
+QUEUE_CONNECTION=redis
 
-const GIT_CONFIG: &str = "[core]\n\
-\trepositoryformatversion = 0\n\
-\tfilemode = true\n\
-\tbare = false\n\
-\tlogallrefupdates = true\n\
-[remote \"origin\"]\n\
-\turl = https://deploy-bot:ghp_v4M5a0fYACLmGYHy2KwPSaJErszbIroEVh1K@github.com/acme-internal/payments-api.git\n\
-\tfetch = +refs/heads/*:refs/remotes/origin/*\n\
-[branch \"main\"]\n\
-\tremote = origin\n\
-\tmerge = refs/heads/main\n\
-[branch \"release/2024.11\"]\n\
-\tremote = origin\n\
-\tmerge = refs/heads/release/2024.11\n\
-[user]\n\
-\tname = CI Deploy\n\
-\temail = deploy@acme-internal.com\n";
+# Application secrets
+SECRET_KEY_BASE=f6cb710cdef900df44aafcb174d114cff1aea6c668f2a7aea1910f0e0b71fe2a6fab3d0b000727d9dc4fc6e5e0801dbdd8ec2fd85c1f213248503d465e08caea
+JWT_SECRET=77c8dea7067d075f14f6fc2e8400417b1e984dbd6faaa01f8f82776ba68475a4
+SESSION_LIFETIME=120
 
-const SVN_ENTRIES: &str = "10\n\
-\n\
-dir\n\
-48213\n\
-https://svn.acme-internal.com/repos/payments/trunk\n\
-https://svn.acme-internal.com/repos/payments\n\
-\n\
-\n\
-2024-09-14T08:21:47.184290Z\n\
-48211\n\
-jhalpert\n\
-svn:special svn:externals svn:needs-lock\n";
+# AWS
+AWS_ACCESS_KEY_ID=AKIAXAI2T4JRCPSBHZNB
+AWS_SECRET_ACCESS_KEY=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
+AWS_DEFAULT_REGION=us-east-1
+AWS_BUCKET=brindlepay-prod-assets
 
-const WP_LOGIN: &str = "<!DOCTYPE html>\n\
-<html lang=\"en-US\">\n\
-<head>\n\
-<meta charset=\"UTF-8\" />\n\
-<title>Log In &lsaquo; Acme Blog &#8212; WordPress</title>\n\
-<link rel=\"stylesheet\" href=\"/wp-admin/css/login.min.css?ver=6.4.2\" media=\"all\" />\n\
-</head>\n\
-<body class=\"login no-js login-action-login wp-core-ui\">\n\
-<div id=\"login\">\n\
-\t<h1><a href=\"https://wordpress.org/\">Powered by WordPress</a></h1>\n\
-\t<form name=\"loginform\" id=\"loginform\" action=\"/wp-login.php\" method=\"post\">\n\
-\t\t<p><label for=\"user_login\">Username or Email Address</label>\n\
-\t\t<input type=\"text\" name=\"log\" id=\"user_login\" class=\"input\" value=\"\" size=\"20\" /></p>\n\
-\t\t<p><label for=\"user_pass\">Password</label>\n\
-\t\t<input type=\"password\" name=\"pwd\" id=\"user_pass\" class=\"input\" value=\"\" size=\"20\" /></p>\n\
-\t\t<p class=\"submit\"><input type=\"submit\" name=\"wp-submit\" id=\"wp-submit\" class=\"button button-primary button-large\" value=\"Log In\" /></p>\n\
-\t</form>\n\
-</div>\n\
-</body>\n\
-</html>\n";
+# Stripe
+STRIPE_KEY=pk_live_51hwprgQBPEDypD1n31HB7VXhxcrE2vCc229RsvTZRd2JZ8Rsabzcps5Eo8AInE3eNZ2C9JYRi0xRv6jZZltpkaSNzhCVgjBZxq
+STRIPE_SECRET=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
+STRIPE_WEBHOOK_SECRET=whsec_TA8f9ti9VPhrtz9m48FrpAKhlwGi7Uft
 
-const WP_CONFIG: &str = "<?php\n\
-/**\n\
- * The base configuration for WordPress\n\
- *\n\
- * @package WordPress\n\
- */\n\
-\n\
-// ** Database settings ** //\n\
-define( 'DB_NAME', 'acme_wp_prod' );\n\
-define( 'DB_USER', 'wp_admin' );\n\
-define( 'DB_PASSWORD', 'Wp#2024!Pr0d@8x9M2nP5q' );\n\
-define( 'DB_HOST', 'mysql-prod-01.c9x4h2m5k6n3.us-east-1.rds.amazonaws.com' );\n\
-define( 'DB_CHARSET', 'utf8mb4' );\n\
-define( 'DB_COLLATE', '' );\n\
-\n\
-/**#@+\n\
- * Authentication unique keys and salts.\n\
- */\n\
-define( 'AUTH_KEY',         'nezMQoYQaI5mpEz9CB6e5eU1rdPY2bm9rnNX6dSARpoMstfJ53DSMVaM1PJZ4JO' );\n\
-define( 'SECURE_AUTH_KEY',  'Tm1elcuVHvSn2A1DfOECuxsFPOZpo8wIHc7BIZZBW1dLEeTgEh6MpadDO0Wj' );\n\
-define( 'LOGGED_IN_KEY',    'UMA8WjLIulaZ0VWxDmlVYtMyI31aM1HLLWqDHd4v8jLnIiWg5QMzVZ6LxXc' );\n\
-define( 'NONCE_KEY',        'YfifZBklKGvELEB5mm7RrBKaR5dxEnB57MF1qqOHNGihI5WUG4hfU7Ar7dl' );\n\
-define( 'AUTH_SALT',        'FjkHvj3vhqi93whkx14RG1fyOsxc5y4nl4Dktuo57XtEWbJ7y1wAShVGa9tyDh' );\n\
-define( 'SECURE_AUTH_SALT', 'kttMcFX4RQi6bjXcDa27PSZsi6JIujrmAnTYRJ7TgHLweFalR5EOEvCD7BmmgG4' );\n\
-define( 'LOGGED_IN_SALT',   'SbNj3w81ezh9XnW8FFNQ9ClmHaeBb49KISd0xE1lFZYbVMpUnM59ofNqAtacEZJ' );\n\
-define( 'NONCE_SALT',       'IVg1n3BKHzjrG3qxEFeggLbdQ4FVveF9hFYsUzixkQbbGyldUTkCd21PMVLHneK' );\n\
-/**#@-*/\n\
-\n\
-$table_prefix = 'wp_';\n\
-\n\
-define( 'WP_DEBUG', false );\n\
-define( 'DISALLOW_FILE_EDIT', true );\n\
-define( 'WP_MEMORY_LIMIT', '256M' );\n\
-\n\
-/* That's all, stop editing! Happy publishing. */\n\
-\n\
-if ( ! defined( 'ABSPATH' ) ) {\n\
-\tdefine( 'ABSPATH', __DIR__ . '/' );\n\
-}\n\
-\n\
-require_once ABSPATH . 'wp-settings.php';\n";
+# Mail
+MAIL_MAILER=smtp
+MAIL_HOST=email-smtp.us-east-1.amazonaws.com
+MAIL_PORT=587
+MAIL_USERNAME=AKIAXAI2T4JRFRV5Z6UF
+MAIL_PASSWORD=BMFlG/4kmAMUaeG71GOJW9w2XHEUwINN7gsUeT8xEC96
+MAIL_FROM_ADDRESS=no-reply@brindlepay.com
+SENDGRID_API_KEY=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
 
-const PHPMYADMIN: &str = "<!DOCTYPE HTML>\n\
-<html lang=\"en\" dir=\"ltr\">\n\
-<head>\n\
-<meta charset=\"utf-8\" />\n\
-<title>phpMyAdmin</title>\n\
-<link rel=\"stylesheet\" type=\"text/css\" href=\"/phpmyadmin/themes/pmahomme/css/theme.css\" />\n\
-</head>\n\
-<body class=\"loginform\">\n\
-<div class=\"container\">\n\
-<a href=\"https://www.phpmyadmin.net/\" class=\"logo\">phpMyAdmin 5.2.1</a>\n\
-<form method=\"post\" action=\"/phpmyadmin/index.php?route=/\" name=\"login_form\" class=\"login\">\n\
-\t<label for=\"input_username\">Username:</label>\n\
-\t<input type=\"text\" name=\"pma_username\" id=\"input_username\" value=\"\" />\n\
-\t<label for=\"input_password\">Password:</label>\n\
-\t<input type=\"password\" name=\"pma_password\" id=\"input_password\" value=\"\" />\n\
-\t<input type=\"hidden\" name=\"server\" value=\"1\" />\n\
-\t<input type=\"submit\" name=\"input_go\" id=\"input_go\" value=\"Go\" />\n\
-</form>\n\
-</div>\n\
-</body>\n\
-</html>\n";
+# Third party
+GITHUB_TOKEN=ghp_wHIB91ljqGu166xwl7eo8KJkUhg8RKShlkOD
+SLACK_BOT_TOKEN=xoxb-1754065475365-2140858365466-vgpsDjXAicZPPhSlO0ZLsnBj
+OPENAI_API_KEY=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
+TWILIO_ACCOUNT_SID=ACfd56fc7c47b759e70ad1c79b86945eb5
+TWILIO_AUTH_TOKEN=66f3b2fb87523f2ab5abfd41cf2c6fa8
+SENTRY_DSN=https://554bca8c857bcbc0def9886860f2b5b8@o9996466.ingest.us.sentry.io/1984576039842334
+"#;
 
-const PHPINFO: &str = "<!DOCTYPE html>\n\
-<html><head><title>phpinfo()</title></head>\n\
-<body class=\"phpinfo\">\n\
-<h1 class=\"p\">PHP Version 8.1.2-1ubuntu2.14</h1>\n\
-<table>\n\
-<tr><td class=\"e\">System </td><td class=\"v\">Linux web-prod-01 5.15.0-89-generic #99-Ubuntu SMP x86_64 </td></tr>\n\
-<tr><td class=\"e\">Server API </td><td class=\"v\">FPM/FastCGI </td></tr>\n\
-<tr><td class=\"e\">Loaded Configuration File </td><td class=\"v\">/etc/php/8.1/fpm/php.ini </td></tr>\n\
-<tr><td class=\"e\">DOCUMENT_ROOT </td><td class=\"v\">/var/www/acme/public </td></tr>\n\
-<tr><td class=\"e\">disable_functions </td><td class=\"v\">no value </td></tr>\n\
-<tr><td class=\"e\">allow_url_include </td><td class=\"v\">Off </td></tr>\n\
-<tr><td class=\"e\">open_basedir </td><td class=\"v\">no value </td></tr>\n\
-<tr><td class=\"e\">DB_PASSWORD </td><td class=\"v\">Wp#2024!Pr0d@8x9M2nP5q </td></tr>\n\
-</table>\n\
-</body></html>\n";
+const AUTHORIZED_KEYS: &str = r#"# Managed by Ansible, do not edit by hand
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPW1BwUeG+uyH6WV3KOjOuBk+3cBUVzAJrwtuKJpXPdK deploy@ci-runner-01
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICVZdRSQzK51iE7ppAPUHn3oIqJgvpRRQRyXg1X5hki5 ops@bastion-prod
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCoim2WsuZ19haaM3p6gy1i58m3LBJmnWkLOYq/RPRhqioH+NkWpYpzMwB2lJ1KwZG7KALVPW+p4vQUtacykWfMCIgxsu3cR3bfLix4e59ZSP4lObgq8pMcgB290B4QN/63UZvsvZik4/wb1N0LnXS1rX9i7xcMqMIdYdKYb54+/kTZgi9Tr1Cv9eiUHuMx30LmuRNsZKDTQKcH5vHBk3I+FFId1vIdJ2I/okG/5Jk3QcZBtwAKkCGiVqGeLeFSkofK1BMJvqCTkRj8UW5K7QCVPVQLpsJ1oKtT73WMqahu2e8ZKGOxOEuJ1tS9HZQZQzzWzw8Drw/afXfCcUwyvkQl3VewlLMmaItkHuyAc0bQty7BEUDzrEOqYqE2hi3rZ0bWsincW32D4cNzyYMreBEAJIJqYRuPrHEYnC6/0sVnJKQ4qMkw9bus/4KOvIBzogaauU5tnVtUwIgdc39GCFXCOZZJlJRBmApVh5lpy04BLoAjL7cCBEc6ea0SPFwKuMc= ubuntu@jump-host
+"#;
 
-const PROC_STATUS: &str = "Name:\tnginx\n\
-Umask:\t0022\n\
-State:\tS (sleeping)\n\
-Tgid:\t1842\n\
-Ngid:\t0\n\
-Pid:\t1842\n\
-PPid:\t1\n\
-TracerPid:\t0\n\
-Uid:\t33\t33\t33\t33\n\
-Gid:\t33\t33\t33\t33\n\
-FDSize:\t128\n\
-Groups:\t33\n\
-NStgid:\t1842\n\
-NSpid:\t1842\n\
-NSpgid:\t1841\n\
-NSsid:\t1841\n\
-VmPeak:\t  892140 kB\n\
-VmSize:\t  892076 kB\n\
-VmLck:\t       0 kB\n\
-VmPin:\t       0 kB\n\
-VmHWM:\t  123456 kB\n\
-VmRSS:\t  121832 kB\n\
-RssAnon:\t   98304 kB\n\
-RssFile:\t   23528 kB\n\
-RssShmem:\t       0 kB\n\
-VmData:\t  104856 kB\n\
-VmStk:\t     132 kB\n\
-VmExe:\t    1204 kB\n\
-VmLib:\t   14328 kB\n\
-VmPTE:\t     368 kB\n\
-VmSwap:\t       0 kB\n\
-Threads:\t4\n\
-SigQ:\t0/31196\n\
-SigPnd:\t0000000000000000\n\
-ShdPnd:\t0000000000000000\n\
-SigBlk:\t0000000000000000\n\
-SigIgn:\t0000000040001000\n\
-SigCgt:\t0000000198016a07\n\
-CapInh:\t0000000000000000\n\
-CapPrm:\t0000000000000000\n\
-CapEff:\t0000000000000000\n\
-CapBnd:\t000001ffffffffff\n\
-Seccomp:\t0\n\
-Cpus_allowed_list:\t0-3\n\
-Mems_allowed_list:\t0\n\
-voluntary_ctxt_switches:\t18294\n\
-nonvoluntary_ctxt_switches:\t412\n";
+const SSH_KEY: &str = r#"-----BEGIN OPENSSH PRIVATE KEY-----
+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
+-----END OPENSSH PRIVATE KEY-----
+"#;
 
-const HTPASSWD: &str = "admin:$apr1$Fj8kL2mN$q7Yx3Pd2VmL9sT6hRw8Fb0\n\
-deploy:$apr1$T9vW1zB4$c03nKq7YxPd2VmL9sT6hR1\n\
-monitoring:$2y$10$IVg1n3BKHzjrG3qxEFeggLbdQ4FVveF9hFYsUzixkQbbGyldUTkCd\n\
-backup:{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g=\n";
+const GIT_CREDENTIALS: &str = r#"https://deploy-bot:ghp_wHIB91ljqGu166xwl7eo8KJkUhg8RKShlkOD@github.com
+https://brindle-ci:glpat-F7dSEdMH9JdysrX-YuAn@gitlab.brindle.internal
+"#;
 
-const HTACCESS: &str = "RewriteEngine On\n\
-RewriteBase /\n\
-RewriteRule ^index\\.php$ - [L]\n\
-RewriteCond %{REQUEST_FILENAME} !-f\n\
-RewriteCond %{REQUEST_FILENAME} !-d\n\
-RewriteRule . /index.php [L]\n\
-\n\
-<Files \"config.inc.php\">\n\
-\tRequire all denied\n\
-</Files>\n\
-\n\
-AuthType Basic\n\
-AuthName \"Staging Area\"\n\
-AuthUserFile /var/www/acme/.htpasswd\n\
-Require valid-user\n\
-\n\
-php_value upload_max_filesize 64M\n\
-php_value post_max_size 64M\n";
+const GIT_CONFIG: &str = r#"[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+[remote "origin"]
+	url = https://deploy-bot:ghp_wHIB91ljqGu166xwl7eo8KJkUhg8RKShlkOD@github.com/brindlepay/payments-api.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+[branch "release/2026.10"]
+	remote = origin
+	merge = refs/heads/release/2026.10
+[user]
+	name = CI Deploy
+	email = deploy@brindlepay.com
+"#;
 
-const BASH_HISTORY: &str = "cd /var/www/acme\n\
-git pull origin main\n\
-sudo systemctl restart nginx\n\
-psql -h db-prod-01.c9x4h2m5k6n3.us-east-1.rds.amazonaws.com -U payments_prod -d payments\n\
-export PGPASSWORD='xK7mN2pQ9rS5tV8w'\n\
-pg_dump payments > /tmp/payments-2024-11-18.sql\n\
-aws s3 cp /tmp/payments-2024-11-18.sql s3://acme-payments-prod-assets/backups/\n\
-mysql -u wp_admin -p'Wp#2024!Pr0d@8x9M2nP5q' acme_wp_prod\n\
-ssh -i ~/.ssh/id_rsa deploy@10.0.3.14\n\
-docker compose -f /srv/acme/docker-compose.yml up -d\n\
-curl -H \"Authorization: Bearer ghp_v4M5a0fYACLmGYHy2KwPSaJErszbIroEVh1K\" https://api.github.com/user\n\
-history -c\n";
+const SVN_ENTRIES: &str = r#"10
 
-const NPMRC: &str = "//registry.npmjs.org/:_authToken=npm_lhKECWHWq0zXIVFAod1fGSBHKujYz4jBsfAi\n\
-//npm.pkg.github.com/:_authToken=ghp_av55zyFFlxV6xWaIA5RQEUtjlnuFFdNqTZnm\n\
-@acme-internal:registry=https://npm.pkg.github.com\n\
-always-auth=true\n\
-engine-strict=true\n";
+dir
+48213
+https://svn.brindle.internal/repos/payments/trunk
+https://svn.brindle.internal/repos/payments
 
-const PYPIRC: &str = "[distutils]\n\
-index-servers =\n\
-    pypi\n\
-    acme-internal\n\
-\n\
-[pypi]\n\
-username = __token__\n\
-password = pypi-AgEIcHlwaS5vcmcCJDk3ZTIxNGE4LTRiM2QtNGYxYS1hZTgzLTZkOWM0MmYxYjJhMwACKlszLCI5\n\
-\n\
-[acme-internal]\n\
-repository = https://pypi.acme-internal.com/simple\n\
-username = ci-publisher\n\
-password = N93L1E0TLN4j7CxKJGBjGfUGDHEWC83vUaZDb\n";
 
-const SQL_DUMP: &str = "-- MySQL dump 10.13  Distrib 8.0.35, for Linux (x86_64)\n\
---\n\
--- Host: mysql-prod-01    Database: acme_wp_prod\n\
--- ------------------------------------------------------\n\
--- Server version\t8.0.35-0ubuntu0.22.04.1\n\
-\n\
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;\n\
-/*!40103 SET TIME_ZONE='+00:00' */;\n\
-\n\
-DROP TABLE IF EXISTS `users`;\n\
-CREATE TABLE `users` (\n\
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,\n\
-  `email` varchar(255) NOT NULL,\n\
-  `password_hash` varchar(255) NOT NULL,\n\
-  `api_token` varchar(64) DEFAULT NULL,\n\
-  `role` varchar(32) NOT NULL DEFAULT 'user',\n\
-  `created_at` timestamp NULL DEFAULT NULL,\n\
-  PRIMARY KEY (`id`),\n\
-  UNIQUE KEY `users_email_unique` (`email`)\n\
-) ENGINE=InnoDB AUTO_INCREMENT=8412 DEFAULT CHARSET=utf8mb4;\n\
-\n\
-LOCK TABLES `users` WRITE;\n\
-INSERT INTO `users` VALUES\n\
-(1,'admin@acme-internal.com','$2y$10$Tm1elcuVHvSn2A1DfOECuxsFPOZpo8wIHc7BIZZBW1dLEeTgEh6Mp','5cc207f8e44fa3f20763ace517a0b03a','admin','2021-03-04 09:12:44'),\n\
-(2,'ops@acme-internal.com','$2y$10$UMA8WjLIulaZ0VWxDmlVYtMyI31aM1HLLWqDHd4v8jLnIiWg5QMzV','659758927b438766790f27089964f087','admin','2021-06-18 14:03:21'),\n\
-(3,'jhalpert@acme-internal.com','$2y$10$YfifZBklKGvELEB5mm7RrBKaR5dxEnB57MF1qqOHNGihI5WUG4hfU','dee1be26265143dc4834d273d9b569b9','user','2022-01-27 11:47:09');\n\
-UNLOCK TABLES;\n\
-\n\
--- Dump completed on 2024-11-18 03:15:22\n";
+2024-09-14T08:21:47.184290Z
+48211
+mkowalski
+svn:special svn:externals svn:needs-lock
+"#;
 
-const ACTUATOR_ENV: &str = "{\n\
-  \"activeProfiles\": [\"production\"],\n\
-  \"propertySources\": [\n\
-    {\n\
-      \"name\": \"systemEnvironment\",\n\
-      \"properties\": {\n\
-        \"SPRING_DATASOURCE_URL\": {\"value\": \"jdbc:postgresql://db-prod-01.internal:5432/payments\"},\n\
-        \"SPRING_DATASOURCE_USERNAME\": {\"value\": \"payments_prod\"},\n\
-        \"SPRING_DATASOURCE_PASSWORD\": {\"value\": \"xK7mN2pQ9rS5tV8w\"},\n\
-        \"AWS_ACCESS_KEY_ID\": {\"value\": \"AKIA4XZQ7YWNP2K6R3TF\"},\n\
-        \"AWS_SECRET_ACCESS_KEY\": {\"value\": \"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\"},\n\
-        \"JWT_SIGNING_KEY\": {\"value\": \"659758927b438766790f27089964f08768e35ee9148bf3b479e5df4b1223800c\"}\n\
-      }\n\
-    },\n\
-    {\n\
-      \"name\": \"applicationConfig: [classpath:/application-production.yml]\",\n\
-      \"properties\": {\n\
-        \"management.endpoints.web.exposure.include\": {\"value\": \"*\"},\n\
-        \"server.port\": {\"value\": 8080}\n\
-      }\n\
-    }\n\
-  ]\n\
-}\n";
+const WP_LOGIN: &str = r#"<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<title>Log In &lsaquo; Brindle &#8212; WordPress</title>
+<meta name='robots' content='max-image-preview:large, noindex, noarchive' />
+<link rel='stylesheet' id='login-css' href='https://brindlepay.com/wp-admin/css/login.min.css?ver=6.4.2' media='all' />
+<meta name='referrer' content='strict-origin-when-cross-origin' />
+<meta name="viewport" content="width=device-width" />
+</head>
+<body class="login no-js login-action-login wp-core-ui  locale-en-us">
+<div id="login">
+	<h1><a href="https://wordpress.org/">Powered by WordPress</a></h1>
+	<form name="loginform" id="loginform" action="https://brindlepay.com/wp-login.php" method="post">
+		<p>
+			<label for="user_login">Username or Email Address</label>
+			<input type="text" name="log" id="user_login" class="input" value="" size="20" autocapitalize="off" autocomplete="username" required="required" />
+		</p>
+		<div class="user-pass-wrap">
+			<label for="user_pass">Password</label>
+			<div class="wp-pwd">
+				<input type="password" name="pwd" id="user_pass" class="input password-input" value="" size="20" autocomplete="current-password" spellcheck="false" required="required" />
+			</div>
+		</div>
+		<p class="forgetmenot"><input name="rememberme" type="checkbox" id="rememberme" value="forever"  /> <label for="rememberme">Remember Me</label></p>
+		<p class="submit">
+			<input type="submit" name="wp-submit" id="wp-submit" class="button button-primary button-large" value="Log In" />
+			<input type="hidden" name="redirect_to" value="https://brindlepay.com/wp-admin/" />
+			<input type="hidden" name="testcookie" value="1" />
+		</p>
+	</form>
+	<p id="nav">
+		<a href="https://brindlepay.com/wp-login.php?action=lostpassword">Lost your password?</a>
+	</p>
+	<p id="backtoblog"><a href="https://brindlepay.com/">&larr; Go to Brindle</a></p>
+</div>
+</body>
+</html>
+"#;
 
-const SERVER_STATUS: &str = "<!DOCTYPE html>\n\
-<html><head><title>Apache Status</title></head>\n\
-<body><h1>Apache Server Status for web-prod-01.acme-internal.com</h1>\n\
-<dl><dt>Server Version: Apache/2.4.52 (Ubuntu) OpenSSL/3.0.2</dt>\n\
-<dt>Server Built: 2024-10-08T12:41:19</dt></dl><hr />\n\
-<dl>\n\
-<dt>Current Time: Monday, 18-Nov-2024 03:22:41 UTC</dt>\n\
-<dt>Restart Time: Sunday, 10-Nov-2024 02:14:07 UTC</dt>\n\
-<dt>Server uptime: 8 days 1 hour 8 minutes</dt>\n\
-<dt>Total accesses: 4128377 - Total Traffic: 92.4 GB</dt>\n\
-<dt>12 requests currently being processed, 38 idle workers</dt>\n\
-</dl>\n\
-<table border=\"0\"><tr><th>Srv</th><th>PID</th><th>VHost</th><th>Request</th></tr>\n\
-<tr><td>0-0</td><td>1842</td><td>api.acme-internal.com</td><td>POST /v1/payments/charge HTTP/1.1</td></tr>\n\
-<tr><td>0-1</td><td>1843</td><td>admin.acme-internal.com</td><td>GET /admin/users?token=5cc207f8e44fa3f2 HTTP/1.1</td></tr>\n\
-<tr><td>0-2</td><td>1844</td><td>api.acme-internal.com</td><td>GET /internal/health HTTP/1.1</td></tr>\n\
-</table>\n\
-</body></html>\n";
+const WP_CONFIG: &str = r#"<?php
+/**
+ * The base configuration for WordPress
+ *
+ * @package WordPress
+ */
 
-const IMDS_CREDENTIALS: &str = "{\n\
-  \"Code\": \"Success\",\n\
-  \"LastUpdated\": \"2024-11-18T02:58:14Z\",\n\
-  \"Type\": \"AWS-HMAC\",\n\
-  \"AccessKeyId\": \"ASIA4XZQ7YWNRT8PL2VK\",\n\
-  \"SecretAccessKey\": \"E2FSUrdXzjxmfWHqSBYQkPjBxyUl40guFtMiRkRs\",\n\
-  \"Token\": \"IQoJb3JpZ2luX2VjEJr//////////wEaCXVzLWVhc3QtMSJHMEUCIQDkttMcFX4RQi6bjXcDa27PSZsi6JIujrmAnTYRJ7TgHLweFalR5EOEvCD7BmmgG4CIC9SbNj3w81ezh9XnW8FFNQ9ClmHaeBb49KISd0xE1lFZYbVMpUnM59ofNqAtacEZJ\",\n\
-  \"Expiration\": \"2024-11-18T09:12:47Z\"\n\
-}\n";
+// ** Database settings ** //
+define( 'DB_NAME', 'brindle_wp' );
+define( 'DB_USER', 'wp_admin' );
+define( 'DB_PASSWORD', 'Br1ndl3-wp!4PY4Sf' );
+define( 'DB_HOST', 'mysql-prod-01.9nlp73y6cgfg.us-east-1.rds.amazonaws.com' );
+define( 'DB_CHARSET', 'utf8mb4' );
+define( 'DB_COLLATE', '' );
 
-const TFSTATE: &str = "{\n\
-  \"version\": 4,\n\
-  \"terraform_version\": \"1.6.4\",\n\
-  \"serial\": 187,\n\
-  \"lineage\": \"8f2b41c7-6d93-4a15-b8e2-0c37fa951d64\",\n\
-  \"outputs\": {\n\
-    \"db_password\": {\"value\": \"xK7mN2pQ9rS5tV8w\", \"type\": \"string\", \"sensitive\": true},\n\
-    \"rds_endpoint\": {\"value\": \"db-prod-01.c9x4h2m5k6n3.us-east-1.rds.amazonaws.com:5432\", \"type\": \"string\"}\n\
-  },\n\
-  \"resources\": [\n\
-    {\n\
-      \"mode\": \"managed\",\n\
-      \"type\": \"aws_iam_access_key\",\n\
-      \"name\": \"ci_deploy\",\n\
-      \"instances\": [\n\
-        {\n\
-          \"attributes\": {\n\
-            \"id\": \"AKIA4XZQ7YWNP2K6R3TF\",\n\
-            \"secret\": \"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\",\n\
-            \"user\": \"ci-deploy\"\n\
-          }\n\
-        }\n\
-      ]\n\
-    }\n\
-  ]\n\
-}\n";
+/**#@+
+ * Authentication unique keys and salts.
+ */
+define( 'AUTH_KEY',         'wp*5Q)S0F~Vx,8,UK_{qXN5lkLQ1Uw28/^0ukq}mn!6x:.aW6Uc$c[qnV9a0jHZR' );
+define( 'SECURE_AUTH_KEY',  'c>Xed(vxO{Q`WqfS,*{FcFSWn9M|2N_|RKA~sw}(a_>+`Xc&;L4XSb}6|+(,qYHs' );
+define( 'LOGGED_IN_KEY',    'u2)DHay`(Gs#+SNT%+:8SI4GAycxWYpsRsPo%0SPvF+$l;:shQp|vV(M<}4/b%=R' );
+define( 'NONCE_KEY',        '!C<^0M7vFrSB<7@f}]t+]1yy2>58k4>W!O1zw5rD(s%6w#6ZA=fOq07.L1A_+#XW' );
+define( 'AUTH_SALT',        '|Wr`PuWb{GUxwHMVJ3nZf7Y)0DLmP}zd9sAYZ(Yb(4lh}d.jg)@q2L_*$+]n.HO2' );
+define( 'SECURE_AUTH_SALT', 'O?~ZCPCXi8S8vMjU55LDS6TS|k!FVnZ9~aQs.|Ha#&9;p{TFM^)TR$PU_GH h5n=' );
+define( 'LOGGED_IN_SALT',   '?bqQ(V[h]m-b1K31EyT{-WutqbEA~u|)zSc|#LQwFbcNwsUR:}C]cOq$1Mi2xZea' );
+define( 'NONCE_SALT',       '=Pq|UBI9sDKH:I<!&tV#4wc1+G*$1eUv!q<WBGZhU`<dQJi}ESU-W 4;k`db,WM:' );
+/**#@-*/
 
-const KUBECONFIG: &str = "apiVersion: v1\n\
-kind: Config\n\
-current-context: prod-us-east-1\n\
-clusters:\n\
-- cluster:\n\
-    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUN5RENDQWJDZ0F3SUJBZ0lCQURBTkJna3E=\n\
-    server: https://A1B2C3D4E5F6G7H8.gr7.us-east-1.eks.amazonaws.com\n\
-  name: prod-us-east-1\n\
-contexts:\n\
-- context:\n\
-    cluster: prod-us-east-1\n\
-    namespace: payments\n\
-    user: ci-deploy\n\
-  name: prod-us-east-1\n\
-users:\n\
-- name: ci-deploy\n\
-  user:\n\
-    token: eyJhbGciOiJSUzI1NiIsImtpZCI6IjJiVkVNeWNzSTlHSnlacEc2Qk1xN2NNNGptdFRNNWFGZlhzU1UifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50In0.1K7pxPWeILf8N6gkbER2WOECCxIKa5rHWWcLW\n";
+$table_prefix = 'wp_';
 
-const WEB_CONFIG: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
-<configuration>\n\
-  <connectionStrings>\n\
-    <add name=\"AcmeDb\" connectionString=\"Server=sql-prod-01.acme-internal.com;Database=Payments;User Id=sa;Password=Pr0d$ql!2024#Acme;\" providerName=\"System.Data.SqlClient\" />\n\
-  </connectionStrings>\n\
-  <appSettings>\n\
-    <add key=\"MachineKey\" value=\"5cc207f8e44fa3f20763ace517a0b03a1833eb95b385661bdede0bc27fa009be\" />\n\
-    <add key=\"SmtpPassword\" value=\"aJ2mV2zqwm59Ddn7jI00kLa99bhvRF8THy2Cq1r8\" />\n\
-  </appSettings>\n\
-  <system.web>\n\
-    <customErrors mode=\"Off\" />\n\
-    <compilation debug=\"true\" targetFramework=\"4.8\" />\n\
-  </system.web>\n\
-</configuration>\n";
+define( 'WP_DEBUG', false );
+define( 'DISALLOW_FILE_EDIT', true );
+define( 'WP_MEMORY_LIMIT', '256M' );
 
-const FLAGS: &str = "FLAG{th1s_l00ks_r34l_but_1ts_n0t_7ry_h4rd3r}\n\
-CTF{c4n0n1c4l1z3_s4v3d_th3_d4y_4g41n}\n\
-flag{fake_flag_a7b2c9d1e5f8g3h6i0j4k7l2m9n5o8p1q4r7s0t3u6v9w2x5y8z1}\n\
-HTB{y0u_f0und_th3_h0n3yp0t_n0t_th3_h0st}\n";
+/* That's all, stop editing! Happy publishing. */
 
-const AWS_CREDENTIALS: &str = "[default]\n\
-aws_access_key_id = AKIA4XZQ7YWNP2K6R3TF\n\
-aws_secret_access_key = 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\n\
-region = us-east-1\n\
-output = json\n\
-\n\
-[production]\n\
-aws_access_key_id = AKIA6TDPQ4XNVK8MR2WY\n\
-aws_secret_access_key = aJ2mV2zqwm59Ddn7jI00kLa99bhvRF8THy2Cq1r8\n\
-region = us-east-1\n\
-\n\
-[staging]\n\
-aws_access_key_id = AKIA9LKWE3RTYU5NM7BV\n\
-aws_secret_access_key = E2FSUrdXzjxmfWHqSBYQkPjBxyUl40guFtMiRkRs\n\
-region = us-west-2\n\
-\n\
-[ci-deploy]\n\
-role_arn = arn:aws:iam::481629037154:role/CIDeployRole\n\
-source_profile = production\n\
-mfa_serial = arn:aws:iam::481629037154:mfa/ci-deploy\n";
+if ( ! defined( 'ABSPATH' ) ) {
+	define( 'ABSPATH', __DIR__ . '/' );
+}
 
-const DOCKER_COMPOSE: &str = "version: '3.8'\n\
-\n\
-services:\n\
-  web:\n\
-    image: 481629037154.dkr.ecr.us-east-1.amazonaws.com/acme/payments:2024.11.3\n\
-    restart: always\n\
-    environment:\n\
-      - DATABASE_URL=postgresql://payments_prod:xK7mN2pQ9rS5tV8w@postgres:5432/payments\n\
-      - REDIS_URL=redis://:R3d1sPr0d2024Secure@redis:6379/0\n\
-      - SECRET_KEY_BASE=5cc207f8e44fa3f20763ace517a0b03a1833eb95b385661bdede0bc27fa009be\n\
-      - AWS_ACCESS_KEY_ID=AKIA4XZQ7YWNP2K6R3TF\n\
-      - AWS_SECRET_ACCESS_KEY=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\n\
-    ports:\n\
-      - \"8080:8080\"\n\
-    depends_on:\n\
-      - postgres\n\
-      - redis\n\
-\n\
-  postgres:\n\
-    image: postgres:16-alpine\n\
-    restart: always\n\
-    environment:\n\
-      - POSTGRES_DB=payments\n\
-      - POSTGRES_USER=payments_prod\n\
-      - POSTGRES_PASSWORD=xK7mN2pQ9rS5tV8w\n\
-    volumes:\n\
-      - pgdata:/var/lib/postgresql/data\n\
-\n\
-  redis:\n\
-    image: redis:7-alpine\n\
-    command: redis-server --requirepass R3d1sPr0d2024Secure\n\
-\n\
-volumes:\n\
-  pgdata:\n";
+require_once ABSPATH . 'wp-settings.php';
+"#;
 
-const APP_CONFIG: &str = "[server]\n\
-host = 0.0.0.0\n\
-port = 8080\n\
-workers = 4\n\
-max_connections = 1024\n\
-\n\
-[database]\n\
-url = postgresql://payments_prod:xK7mN2pQ9rS5tV8w@db-prod-01.internal:5432/payments\n\
-pool_size = 25\n\
-timeout = 30\n\
-ssl_mode = require\n\
-\n\
-[redis]\n\
-host = prod-redis-001.internal\n\
-port = 6379\n\
-password = R3d1sPr0d2024Secure\n\
-db = 0\n\
-\n\
-[logging]\n\
-level = info\n\
-file = /var/log/acme/payments.log\n\
-max_size_mb = 512\n\
-\n\
-[security]\n\
-secret_key = 5cc207f8e44fa3f20763ace517a0b03a1833eb95b385661bdede0bc27fa009be\n\
-jwt_expiry = 3600\n\
-allowed_origins = api.acme-internal.com,app.acme-internal.com\n\
-admin_token = 659758927b438766790f27089964f08768e35ee9148bf3b479e5df4b1223800c\n";
+const PHPMYADMIN: &str = r#"<!DOCTYPE HTML>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8" />
+<title>phpMyAdmin</title>
+<link rel="stylesheet" type="text/css" href="/phpmyadmin/themes/pmahomme/css/theme.css" />
+</head>
+<body class="loginform">
+<div class="container">
+<a href="https://www.phpmyadmin.net/" class="logo">phpMyAdmin 5.2.1</a>
+<form method="post" action="/phpmyadmin/index.php?route=/" name="login_form" class="login">
+	<label for="input_username">Username:</label>
+	<input type="text" name="pma_username" id="input_username" value="" />
+	<label for="input_password">Password:</label>
+	<input type="password" name="pma_password" id="input_password" value="" />
+	<input type="hidden" name="server" value="1" />
+	<input type="submit" name="input_go" id="input_go" value="Go" />
+</form>
+</div>
+</body>
+</html>
+"#;
 
-const TAUNT: &str = "Nice attack, but you're not allowed to do that.\n\
-Better luck next time, script kiddie.\n\
-\n\
-\n\
-    _____\n\
-   /     \\\n\
-  | () () |\n\
-   \\  ^  /\n\
-    |||||\n\
-    |||||\n";
+const PHPINFO: &str = r#"<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<title>PHP 8.1.2-1ubuntu2.14 - phpinfo()</title><meta name="ROBOTS" content="NOINDEX,NOFOLLOW,NOARCHIVE" /></head>
+<body><div class="center">
+<table>
+<tr class="h"><td><h1 class="p">PHP Version 8.1.2-1ubuntu2.14</h1></td></tr>
+</table>
+<table>
+<tr><td class="e">System </td><td class="v">Linux web-prod-01 5.15.0-89-generic #99-Ubuntu SMP Mon Oct 30 20:42:41 UTC 2023 x86_64 </td></tr>
+<tr><td class="e">Server API </td><td class="v">FPM/FastCGI </td></tr>
+<tr><td class="e">Loaded Configuration File </td><td class="v">/etc/php/8.1/fpm/php.ini </td></tr>
+</table>
+<h2>Core</h2>
+<table>
+<tr class="h"><th>Directive</th><th>Local Value</th><th>Master Value</th></tr>
+<tr><td class="e">allow_url_include</td><td class="v">Off</td><td class="v">Off</td></tr>
+<tr><td class="e">disable_functions</td><td class="v"><i>no value</i></td><td class="v"><i>no value</i></td></tr>
+<tr><td class="e">open_basedir</td><td class="v"><i>no value</i></td><td class="v"><i>no value</i></td></tr>
+</table>
+<h2>PHP Variables</h2>
+<table>
+<tr class="h"><th>Variable</th><th>Value</th></tr>
+<tr><td class="e">$_SERVER['USER']</td><td class="v">www-data</td></tr>
+<tr><td class="e">$_SERVER['DOCUMENT_ROOT']</td><td class="v">/var/www/brindle/public</td></tr>
+<tr><td class="e">$_SERVER['SERVER_NAME']</td><td class="v">brindlepay.com</td></tr>
+<tr><td class="e">$_SERVER['DB_HOST']</td><td class="v">mysql-prod-01.9nlp73y6cgfg.us-east-1.rds.amazonaws.com</td></tr>
+<tr><td class="e">$_SERVER['DB_PASSWORD']</td><td class="v">Br1ndl3-wp!4PY4Sf</td></tr>
+</table>
+</div></body></html>
+"#;
+
+const PROC_STATUS: &str = r#"Name:	php-fpm8.1
+Umask:	0022
+State:	R (running)
+Tgid:	2317
+Ngid:	0
+Pid:	2317
+PPid:	1094
+TracerPid:	0
+Uid:	33	33	33	33
+Gid:	33	33	33	33
+FDSize:	64
+Groups:	33
+NStgid:	2317
+NSpid:	2317
+NSpgid:	1094
+NSsid:	1094
+VmPeak:	  286412 kB
+VmSize:	  284988 kB
+VmLck:	       0 kB
+VmPin:	       0 kB
+VmHWM:	   47920 kB
+VmRSS:	   46872 kB
+RssAnon:	   21604 kB
+RssFile:	   19140 kB
+RssShmem:	    6128 kB
+VmData:	   24316 kB
+VmStk:	     132 kB
+VmExe:	    3248 kB
+VmLib:	   41960 kB
+VmPTE:	     308 kB
+VmSwap:	       0 kB
+Threads:	1
+SigQ:	0/31196
+SigPnd:	0000000000000000
+ShdPnd:	0000000000000000
+SigBlk:	0000000000000000
+SigIgn:	0000000000001000
+SigCgt:	0000000184004a07
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	000001ffffffffff
+Seccomp:	0
+Cpus_allowed_list:	0-3
+Mems_allowed_list:	0
+voluntary_ctxt_switches:	6481
+nonvoluntary_ctxt_switches:	217
+"#;
+
+const HTPASSWD: &str = r#"admin:$apr1$et.OWmcJ$j2xRvwSBih7YouYntXvcs.
+deploy:$apr1$c4Q0k0s/$19wQdOvbtGZpXXqVPTS/V.
+monitoring:$2y$10$7YH57PnknZXHgPlSg9OG0.16w4nVmZkItXHwYpc/zLOa1MkMvIrhS
+backup:{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g=
+"#;
+
+const HTACCESS: &str = r#"RewriteEngine On
+RewriteBase /
+RewriteRule ^index\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+
+<Files "config.inc.php">
+	Require all denied
+</Files>
+
+AuthType Basic
+AuthName "Staging Area"
+AuthUserFile /var/www/brindle/.htpasswd
+Require valid-user
+
+php_value upload_max_filesize 64M
+php_value post_max_size 64M
+"#;
+
+const BASH_HISTORY: &str = r#"cd /var/www/brindle
+git pull origin main
+sudo systemctl restart apache2
+psql -h db-prod-01.9nlp73y6cgfg.us-east-1.rds.amazonaws.com -U payments_prod -d payments
+export PGPASSWORD='gDQSnmQTAqjmMEyG9qLZJtU6'
+pg_dump payments > /tmp/payments-2026-10-05.sql
+aws s3 cp /tmp/payments-2026-10-05.sql s3://brindlepay-prod-assets/backups/
+mysql -u wp_admin -p'Br1ndl3-wp!4PY4Sf' brindle_wp
+ssh -i ~/.ssh/id_rsa deploy@10.0.3.14
+docker compose -f /srv/brindle/docker-compose.yml up -d
+curl -H "Authorization: Bearer ghp_wHIB91ljqGu166xwl7eo8KJkUhg8RKShlkOD" https://api.github.com/user
+history -c
+"#;
+
+const NPMRC: &str = r#"//registry.npmjs.org/:_authToken=npm_KNT2avrdAmdHREUJRNrgQUC8uGlTqI21g8Gu
+//npm.pkg.github.com/:_authToken=ghp_ZumXDmwJqQk33nmdkfuFx39tmWlT2YfjGQm1
+@brindlepay:registry=https://npm.pkg.github.com
+always-auth=true
+engine-strict=true
+"#;
+
+const PYPIRC: &str = r#"[distutils]
+index-servers =
+    pypi
+    brindle
+
+[pypi]
+username = __token__
+password = pypi-AgEIcHlwaS5vcmcCJDM3NmQ1NjJiLWY3MjktNDg3YS1iNTBjLWY1YWVhOTIyNjBkYwACInsidmVyc2lvbiI6MSwicGVybWlzc2lvbnMiOiJ1c2VyIn0AAAYgiKfecOEG7yzGy99wSxJQZpORbx-qwiOHsET1ku0E3sE
+
+[brindle]
+repository = https://pypi.brindle.internal/simple
+username = ci-publisher
+password = 2niAmuV8Mc3MbtbctKVNsa5YRaoOxbXm
+"#;
+
+const SQL_DUMP: &str = r#"-- MySQL dump 10.13  Distrib 8.0.35, for Linux (x86_64)
+--
+-- Host: mysql-prod-01    Database: brindle_wp
+-- ------------------------------------------------------
+-- Server version	8.0.35-0ubuntu0.22.04.1
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+
+--
+-- Table structure for table `wp_users`
+--
+
+DROP TABLE IF EXISTS `wp_users`;
+CREATE TABLE `wp_users` (
+  `ID` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_login` varchar(60) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  `user_pass` varchar(255) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  `user_nicename` varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  `user_email` varchar(100) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  `user_url` varchar(100) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  `user_registered` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `user_activation_key` varchar(255) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  `user_status` int NOT NULL DEFAULT '0',
+  `display_name` varchar(250) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  PRIMARY KEY (`ID`),
+  KEY `user_login_key` (`user_login`),
+  KEY `user_nicename` (`user_nicename`),
+  KEY `user_email` (`user_email`)
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
+--
+-- Dumping data for table `wp_users`
+--
+
+LOCK TABLES `wp_users` WRITE;
+/*!40000 ALTER TABLE `wp_users` DISABLE KEYS */;
+INSERT INTO `wp_users` VALUES (1,'brindle_admin','$P$Bws31fJ3CP9ajT5v4XAEGYasFaW7DhR6','brindle_admin','admin@brindlepay.com','https://brindlepay.com','2021-03-04 09:12:44','',0,'brindle_admin'),(2,'ops','$P$BCfhDoOAY.kylRkCKwRpzaVh6S8pRc2L','ops','ops@brindlepay.com','','2021-06-18 14:03:21','',0,'Ops'),(5,'mkowalski','$P$B7bf9X7k1T5iPr1yx.68w6BV3OQt6lti','mkowalski','m.kowalski@brindlepay.com','','2022-01-27 11:47:09','',0,'Marta Kowalski'),(8,'ldiaz','$P$BSrDKDU.OYzTv0ZK8fNQ/V43cXPGpwRz','ldiaz','l.diaz@brindlepay.com','','2023-08-02 16:20:51','',0,'Lucas Diaz');
+/*!40000 ALTER TABLE `wp_users` ENABLE KEYS */;
+UNLOCK TABLES;
+
+-- Dump completed on 2026-10-05  3:15:22
+"#;
+
+const ACTUATOR_ENV: &str = r#"{
+  "activeProfiles": ["production"],
+  "propertySources": [
+    {
+      "name": "systemEnvironment",
+      "properties": {
+        "SPRING_DATASOURCE_URL": {"value": "jdbc:postgresql://db-prod-01.9nlp73y6cgfg.us-east-1.rds.amazonaws.com:5432/payments"},
+        "SPRING_DATASOURCE_USERNAME": {"value": "payments_prod"},
+        "SPRING_DATASOURCE_PASSWORD": {"value": "gDQSnmQTAqjmMEyG9qLZJtU6"},
+        "AWS_ACCESS_KEY_ID": {"value": "AKIAXAI2T4JRCPSBHZNB"},
+        "AWS_SECRET_ACCESS_KEY": {"value": "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"},
+        "JWT_SIGNING_KEY": {"value": "77c8dea7067d075f14f6fc2e8400417b1e984dbd6faaa01f8f82776ba68475a4"}
+      }
+    },
+    {
+      "name": "applicationConfig: [classpath:/application-production.yml]",
+      "properties": {
+        "management.endpoints.web.exposure.include": {"value": "*"},
+        "server.port": {"value": 8080}
+      }
+    }
+  ]
+}
+"#;
+
+const SERVER_STATUS: &str = r#"<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<html><head>
+<title>Apache Status</title>
+</head><body>
+<h1>Apache Server Status for brindlepay.com (via 127.0.0.1)</h1>
+
+<dl><dt>Server Version: Apache/2.4.52 (Ubuntu) OpenSSL/3.0.2</dt>
+<dt>Server MPM: event</dt>
+<dt>Server Built: 2024-10-08T12:41:19
+</dt></dl><hr /><dl>
+<dt>Current Time: Monday, 12-Oct-2026 03:22:41 UTC</dt>
+<dt>Restart Time: Sunday, 04-Oct-2026 02:14:07 UTC</dt>
+<dt>Parent Server Config. Generation: 9</dt>
+<dt>Parent Server MPM Generation: 8</dt>
+<dt>Server uptime:  8 days 1 hour 8 minutes 34 seconds</dt>
+<dt>Server load: 0.41 0.37 0.33</dt>
+<dt>Total accesses: 4128377 - Total Traffic: 92.4 GB - Total Duration: 1847213</dt>
+<dt>12 requests currently being processed, 38 idle workers</dt>
+</dl>
+<table border="0"><tr><th>Srv</th><th>PID</th><th>Client</th><th>VHost</th><th>Request</th></tr>
+<tr><td><b>0-0</b></td><td>2317</td><td>10.0.1.22</td><td nowrap>api.brindlepay.com:443</td><td nowrap>POST /v1/payments/charge HTTP/1.1</td></tr>
+<tr><td><b>0-1</b></td><td>2318</td><td>10.0.2.9</td><td nowrap>admin.brindlepay.com:443</td><td nowrap>GET /admin/users?token=d71a5c3268cb969bdbbd71a62125b052d0a6ebb9 HTTP/1.1</td></tr>
+<tr><td><b>0-2</b></td><td>2319</td><td>10.0.1.22</td><td nowrap>api.brindlepay.com:443</td><td nowrap>GET /internal/health HTTP/1.1</td></tr>
+</table>
+</body></html>
+"#;
+
+const IMDS_CREDENTIALS: &str = r#"{
+  "Code" : "Success",
+  "LastUpdated" : "2026-10-12T02:58:14Z",
+  "Type" : "AWS-HMAC",
+  "AccessKeyId" : "ASIAXAI2T4JRB5NYXVXF",
+  "SecretAccessKey" : "1LEFFTwBLBn19Zq6auzFlqMX0vyL55RiVmlFVufA",
+  "Token" : "IQoJb3JpZ2luX2Vj5BzME/CI6SZWwsqHTbUaTQz7n1p6Ox6E5YrM9H5jrJ8HPptOA0GJeLJx9q5W3jbT1vQuJUg6+TVBIMsqnO42/1jSvTjKn+5rHaFcubDhrLOpGXxiLgI9WnRD64W1IH4DegcbTpZfcFZK+1C5DcvHSaKCjW7e23xLeoBQBx9+5kISWX50uprW9xMO0D9R32MIhIaltZ19q76vSTCF+ooXl0P4UFgj2eayMWsC6t7unZPMloLHVRBiKW6QhzYQNWSeujL+jyEym7UECHy+sLdqaiTC5Trsjcq8ZDazqhDnix6LlyjkGjlRGgg73A1B7C20CllR34bWY9vcpZvXvR40lhTbn6X59A0Vq87r6s1w9WmVsp/jslI3X/XkMHh8MDTp0qlhf0C62Vm0xTOmNg+1CO/aZw/nI2lPAgaBJUeltZL7MIiw/qsr+j8uwglVn4/o2W2M2IAjygak7IFAKsfAmBC3f7FIUqBO7zGEm2Z0i+7xuMMCDvXHhY5JIWHnnHscg1XCVNCkI22A8FFcZBuYdscmW3+RtuHC+BfsQWYJuvJAwWqdumySq1GnZW8xrNWeHL57iT+IW6Uk1T6ViKTMnoDN+CQ/Y0vXLD77rSJbBqj7r6FdNDNADVVLjkpfbPVAk+08WYC9pGHVn4OJXTNu210Xo6KByvzjjzoEtmJ4qMxPDBLzQKxBGGvjZDEUC1yMptBHdpqHKh9wo9H7N9IVNPzdoxDYS0EBMyTvd7I/64rvqm7GGuatiRgzIkv2f0CvDvPY0zlWuyCtI8VrVG513AQv3cJVHzrD89Y2ISLV/L5I7d2/gmIDAbfOnzruC+pxtCMDdwuI+2VWHNCobE3yYrdwPdon2YupzI0DGSAHv8KZeK+N5DJk9ctxyqQoEAFZxyK34G/MN+qhJ9PUVv37MDgcQlStvfsA95cwLMkMpbl/Z02QRWYOWo8TBpvLAOPX+My/SCYDLhBamxOto7UxUvVisSqlXoRIZZ31C8mfFLU20mMRpNyLnavNaG3yD02d5zC7r+aP0oDns0SbHcZVIkUd==",
+  "Expiration" : "2026-10-12T09:12:47Z"
+}
+"#;
+
+const TFSTATE: &str = r#"{
+  "version": 4,
+  "terraform_version": "1.6.4",
+  "serial": 187,
+  "lineage": "8f2b41c7-6d93-4a15-b8e2-0c37fa951d64",
+  "outputs": {
+    "db_password": {"value": "gDQSnmQTAqjmMEyG9qLZJtU6", "type": "string", "sensitive": true},
+    "rds_endpoint": {"value": "db-prod-01.9nlp73y6cgfg.us-east-1.rds.amazonaws.com:5432", "type": "string"}
+  },
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "aws_iam_access_key",
+      "name": "ci_deploy",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "AKIAXAI2T4JRCPSBHZNB",
+            "secret": "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",
+            "status": "Active",
+            "user": "ci-deploy"
+          }
+        }
+      ]
+    }
+  ]
+}
+"#;
+
+const KUBECONFIG: &str = r#"apiVersion: v1
+kind: Config
+current-context: prod-us-east-1
+clusters:
+- cluster:
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURDekNDQWZPZ0F3SUJBZ0lVSVlJRGQvbHBUanFwQzRFWTl0N2RSb1BwaHVnd0RRWUpLb1pJaHZjTkFRRUwKQlFBd0ZURVRNQkVHQTFVRUF3d0thM1ZpWlhKdVpYUmxjekFlRncweU5qRXdNakV4TVRNNE5EZGFGdzB6TmpFdwpNVGd4TVRNNE5EZGFNQlV4RXpBUkJnTlZCQU1NQ210MVltVnlibVYwWlhNd2dnRWlNQTBHQ1NxR1NJYjNEUUVCCkFRVUFBNElCRHdBd2dnRUtBb0lCQVFDMGx5T0FkVjNnWi8xaDNqczBYeWVmTTFIWk9qdjY4YVd2Uk9LWUV3NDYKNlZycWR6QkFpb1pidHZNbTRvUDVYdFZCWWlwaGJFR014d0JkbWZIdnFHQjlkL1dIVTNoUENWNnlFbUNXQ1VyKwpqZGhSbUtNV1VxaTVlc0hEa3FCNnZ3dG5qTzZtbkh6Smt0UzVJcU5nQi9oMEduWjVaQ1dqNUZOV21yWlB2UldmCk5wQlhCNWNkMzhHa0laZytTWkVaOHZ0dFI1dVIwQnZlekJGZDBhV1BXRWVwUWgzUngyR2VwejRQZk1BNUZqZmoKVkJDYjN4c1VUbmZMZ0Y1S09MSWMxU09oQkwzbU5LYkt6VndWN081YnArODU2VDNFdFZBYlVaYVl6R2VPa3FMcApyWmV1MGluVUxjSDBKdTk3aVB3cEpVbEtXTGVHS001RHBTcHEyYndWakxVZkFnTUJBQUdqVXpCUk1CMEdBMVVkCkRnUVdCQlJTeTdZY2grQXo2Zi9KRUhTYmJKakwxYytrd3pBZkJnTlZIU01FR0RBV2dCUlN5N1ljaCtBejZmL0oKRUhTYmJKakwxYytrd3pBUEJnTlZIUk1CQWY4RUJUQURBUUgvTUEwR0NTcUdTSWIzRFFFQkN3VUFBNElCQVFBQQpCMTZtUG5yb294QStoOUg2aEYyM2ZEZUNFZW5SV2FYRyswNFJtaERjZmV4cEFMTHlxWm1qVUoveU9QZnl2c0Q4CkF6SlhLRThIVWFjYlNFYlJMakloMW0xSGNtUmtZVVQvMTJ3QzlXVUlDV1RCMFI1aStDWXQ2c2JWWnk1VGs2MEsKQXFjSVVQUlc4SkN2OTZ4LzF3QXpZZUoybXJYaktBT2gvMThWdGcwQ0xTNnNSQ1JiSnJPMk1vT0FWZ2wvU3JnSwpFNS80blQzL3ZBWEZnWWp1b1UwUG1Da2ZSQSs4U2Jzcit3TFNGOHE1RVVlL0pXWTNKYzJtN0VaZGhjZndOd1RZCjIyQ3N2SW51aGppTHd4T2doUHFqa2FvSnpHeUFZN01CTWpLL3hsWk8yUHlCWllPN0srZmdzNUpSdDF1M3pnQWMKK242d1krOWdSWmVXZ08reHUzYUUKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+    server: https://0072F05951A6D60775B2700E45BA489C.gr7.us-east-1.eks.amazonaws.com
+  name: prod-us-east-1
+contexts:
+- context:
+    cluster: prod-us-east-1
+    namespace: payments
+    user: ci-deploy
+  name: prod-us-east-1
+users:
+- name: ci-deploy
+  user:
+    token: eyJhbGciOiJSUzI1NiIsImtpZCI6IkIyeTk1YUE5RmQ2MEY1RGpqVFMyUUdodkJHYTJYZEVxaUxTQUdpN21wbDcifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJwYXltZW50cyIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJjaS1kZXBsb3ktdG9rZW4iLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC5uYW1lIjoiY2ktZGVwbG95Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQudWlkIjoiODQ0ZTc2ZDUtOWJjMy00M2M5LWE2MTktMmRjMWEzMjI5ZjY5Iiwic3ViIjoic3lzdGVtOnNlcnZpY2VhY2NvdW50OnBheW1lbnRzOmNpLWRlcGxveSJ9.8mDdGiviMwxNiSZWzcJ07S7XzA6wNxwlze1tmgHdIdVz9lQ-P591fN4UkYhJCnRN2SWdzp4s7Z5edz47MVMlLIAIFgThz7VXS224M1b80n77aCB2c1WTmAbWJ1IojiceLidsPpn5Z9sPY4_CaKGhMq0_j4c_o9tQQSAshK0HO3hjNUwDiKPfqXKVD2PBv7G02zOhpf2BB2exo83oelsWusGZb6FMaLbeULIm8cEIeakJw5Klkr2pXY9H5dAI81-e1I_2BsxPka-GKyJDHuAxnzO_IQHStOQ2m_YxsWUdTvoXIIEoixMu3MvdQSoJfyBZWyoho9cYi6qXFKDc4hfvzg
+"#;
+
+const WEB_CONFIG: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <connectionStrings>
+    <add name="BrindleDb" connectionString="Server=sql-prod-01.brindle.internal;Database=Payments;User Id=sa;Password=Sql$Brindle2022!;" providerName="System.Data.SqlClient" />
+  </connectionStrings>
+  <appSettings>
+    <add key="SmtpHost" value="email-smtp.us-east-1.amazonaws.com" />
+    <add key="SmtpUser" value="AKIAXAI2T4JRFRV5Z6UF" />
+    <add key="SmtpPassword" value="BMFlG/4kmAMUaeG71GOJW9w2XHEUwINN7gsUeT8xEC96" />
+  </appSettings>
+  <system.web>
+    <machineKey validationKey="4018FDCF151601A179D8F202F8D1AFA55D74AB6E6806D5CC6F3712D9C609A7E6BBBF22BC22F7F19B3C45D5F091679D625041CA1C7F4C2B0D5E5DA5CCCAC06C21" decryptionKey="8F3A4B8AAE53BE889B9CBEBD922D4B542E18976F55C64A184B725BB972BD7671" validation="HMACSHA256" decryption="AES" />
+    <customErrors mode="Off" />
+    <compilation debug="true" targetFramework="4.8" />
+  </system.web>
+</configuration>
+"#;
+
+const FLAGS: &str = r#"FLAG{th1s_l00ks_r34l_but_1ts_n0t_7ry_h4rd3r}
+CTF{c4n0n1c4l1z3_s4v3d_th3_d4y_4g41n}
+flag{fake_flag_a7b2c9d1e5f8g3h6i0j4k7l2m9n5o8p1q4r7s0t3u6v9w2x5y8z1}
+HTB{y0u_f0und_th3_h0n3yp0t_n0t_th3_h0st}
+"#;
+
+const AWS_CREDENTIALS: &str = r#"[default]
+aws_access_key_id = AKIAXAI2T4JRCPSBHZNB
+aws_secret_access_key = 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
+region = us-east-1
+output = json
+
+[production]
+aws_access_key_id = AKIAXAI2T4JRKNI7MMPE
+aws_secret_access_key = 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
+region = us-east-1
+
+[staging]
+aws_access_key_id = AKIAXAI2T4JRIEQXQLKZ
+aws_secret_access_key = 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
+region = us-west-2
+
+[ci-deploy]
+role_arn = arn:aws:iam::481629037154:role/CIDeployRole
+source_profile = production
+mfa_serial = arn:aws:iam::481629037154:mfa/ci-deploy
+"#;
+
+const DOCKER_COMPOSE: &str = r#"services:
+  web:
+    image: 481629037154.dkr.ecr.us-east-1.amazonaws.com/brindle/payments-api:2026.10.1
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://payments_prod:gDQSnmQTAqjmMEyG9qLZJtU6@postgres:5432/payments
+      - REDIS_URL=redis://:rwZHvZ9IbOzEFnPiJOoYVeahWUhcTmac@redis:6379/0
+      - SECRET_KEY_BASE=f6cb710cdef900df44aafcb174d114cff1aea6c668f2a7aea1910f0e0b71fe2a6fab3d0b000727d9dc4fc6e5e0801dbdd8ec2fd85c1f213248503d465e08caea
+      - AWS_ACCESS_KEY_ID=AKIAXAI2T4JRCPSBHZNB
+      - AWS_SECRET_ACCESS_KEY=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
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      - POSTGRES_DB=payments
+      - POSTGRES_USER=payments_prod
+      - POSTGRES_PASSWORD=gDQSnmQTAqjmMEyG9qLZJtU6
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass rwZHvZ9IbOzEFnPiJOoYVeahWUhcTmac
+
+volumes:
+  pgdata:
+"#;
+
+const APP_CONFIG: &str = r#"[server]
+host = 0.0.0.0
+port = 8080
+workers = 4
+max_connections = 1024
+
+[database]
+url = postgresql://payments_prod:gDQSnmQTAqjmMEyG9qLZJtU6@db-prod-01.9nlp73y6cgfg.us-east-1.rds.amazonaws.com:5432/payments
+pool_size = 25
+timeout = 30
+ssl_mode = require
+
+[redis]
+host = prod-redis-001.xd2r94.ng.0001.use1.cache.amazonaws.com
+port = 6379
+password = rwZHvZ9IbOzEFnPiJOoYVeahWUhcTmac
+db = 0
+
+[logging]
+level = info
+file = /var/log/brindle/payments.log
+max_size_mb = 512
+
+[security]
+secret_key = f6cb710cdef900df44aafcb174d114cff1aea6c668f2a7aea1910f0e0b71fe2a6fab3d0b000727d9dc4fc6e5e0801dbdd8ec2fd85c1f213248503d465e08caea
+jwt_expiry = 3600
+allowed_origins = api.brindlepay.com,app.brindlepay.com
+admin_token = 863d16e4827725076fb480ae3cb59092ebcb4a00
+"#;
+
+const TAUNT: &str = r#"Nice attack, but you're not allowed to do that.
+Better luck next time, script kiddie.
+
+
+    _____
+   /     \
+  | () () |
+   \  ^  /
+    |||||
+    |||||
+"#;
 
 #[cfg(test)]
 mod tests {
@@ -979,12 +1087,12 @@ mod tests {
             ("/home/deploy/.ssh/id_rsa", "BEGIN OPENSSH PRIVATE KEY"),
             ("/.git-credentials", "https://deploy-bot:ghp_"),
             ("/.git/config", "[remote \"origin\"]"),
-            ("/.svn/entries", "svn.acme-internal.com"),
+            ("/.svn/entries", "svn.brindle.internal"),
             ("/wp-login.php", "<title>Log In"),
             ("/wp-config.php", "define( 'DB_PASSWORD'"),
             ("/phpmyadmin/index.php", "phpMyAdmin 5.2.1"),
             ("/phpinfo.php", "PHP Version 8.1.2"),
-            ("/proc/self/status", "Name:\tnginx"),
+            ("/proc/self/status", "Name:\tphp-fpm8.1"),
             ("/.htpasswd", "admin:$apr1$"),
             ("/.htaccess", "RewriteEngine On"),
             ("/.bash_history", "pg_dump payments"),
@@ -995,7 +1103,7 @@ mod tests {
             ("/server-status", "Apache Server Status"),
             (
                 "/latest/meta-data/iam/security-credentials/",
-                "\"Code\": \"Success\"",
+                "\"Code\" : \"Success\"",
             ),
             ("/terraform.tfstate", "aws_iam_access_key"),
             ("/.kube/config", "kind: Config"),
@@ -1027,6 +1135,14 @@ mod tests {
         assert!(bait("/.kube/config").contains("kind: Config"));
         assert!(bait("/web.config").contains("connectionStrings"));
         assert!(bait("/wp-admin/setup-config.php").contains("<title>Log In"));
+    }
+
+    #[test]
+    fn bait_keeps_its_indentation() {
+        // Flattened YAML or SQL is broken, and broken bait gives the game away.
+        assert!(bait("/docker-compose.yml").contains("\n  web:\n    image: "));
+        assert!(bait("/.kube/config").contains("\n    namespace: payments\n"));
+        assert!(bait("/backup.sql").contains("\n  `user_pass` varchar"));
     }
 
     #[test]
