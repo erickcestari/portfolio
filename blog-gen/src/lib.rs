@@ -8,11 +8,20 @@ use pulldown_cmark::{
     html, CodeBlockKind, CowStr, Event, HeadingLevel, Options, Parser, Tag, TagEnd,
 };
 
+use sha2::{Digest, Sha256};
+
 mod highlight;
+mod randomart;
 mod timeline;
 use highlight::Highlighter;
 
 const SITE_URL: &str = "https://erickcestari.dev";
+
+/// The OpenPGP key served as `static/pubkey.asc`, as `gpg --show-keys` prints
+/// it: the footer shows its key ID and draws its v4 fingerprint as randomart.
+/// Update both if the key is ever replaced.
+const PGP_FINGERPRINT: &str = "3C1BED5D0CF3A270BC690D3AD7D17E26F2FC3F3C";
+const PGP_ALGORITHM: &str = "RSA 3072";
 
 /// Pages that are pure layout: no data to interpolate beyond the shared chrome.
 const STATIC_PAGES: [&str; 3] = ["books.html", "404.html", "honeypot.html"];
@@ -147,7 +156,7 @@ impl Layout {
         let partials = templates_dir.join("partials");
         Ok(Layout {
             header: read(&partials.join("header.html"))?,
-            footer: read(&partials.join("footer.html"))?,
+            footer: render_footer(&read(&partials.join("footer.html"))?),
         })
     }
 
@@ -159,6 +168,34 @@ impl Layout {
             .replace("{{header}}", self.header.trim_end())
             .replace("{{footer}}", self.footer.trim_end()))
     }
+}
+
+/// Fills in the fingerprint, key ID and randomart of the site's PGP key.
+fn render_footer(tmpl: &str) -> String {
+    let fingerprint = hex_bytes(PGP_FINGERPRINT);
+    let art = randomart::draw(&fingerprint, PGP_ALGORITHM, "SHA1");
+    tmpl.replace("{{pgp_fingerprint}}", PGP_FINGERPRINT)
+        .replace(
+            "{{pgp_keyid}}",
+            &PGP_FINGERPRINT[PGP_FINGERPRINT.len() - 16..],
+        )
+        .replace("{{pgp_art}}", &escape_html(&art))
+}
+
+/// A post's randomart, drawn from the SHA-256 of its slug: titles get edited,
+/// the slug is the post's identity.
+fn post_stamp(p: &Post) -> String {
+    let digest = Sha256::digest(p.slug.as_bytes());
+    randomart::draw(&digest, &format!("LEDGER {:03}", p.number), "SHA256")
+}
+
+/// Decodes a hex string known at compile time; anything else is a typo here.
+fn hex_bytes(hex: &str) -> Vec<u8> {
+    assert!(hex.len().is_multiple_of(2), "odd-length hex: {hex}");
+    (0..hex.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).expect("hex digit"))
+        .collect()
 }
 
 fn read(path: &Path) -> Result<String, String> {
@@ -620,6 +657,7 @@ fn render_post(tmpl: &str, p: &Post) -> String {
         .replace("{{block}}", &block)
         .replace("{{toc}}", &p.toc)
         .replace("{{reading_time}}", &p.reading_time.to_string())
+        .replace("{{stamp}}", &escape_html(&post_stamp(p)))
         .replace("{{content}}", &p.html)
 }
 
@@ -805,6 +843,24 @@ target: eclair\nbug: OOM\nstatus: fixed in v0.14.1\nblock: 969369\n---\nBody.\n"
         assert!(html.contains("<span class=\"ledger-tags\"></span>"));
         assert!(!html.contains("ledger-status"));
         assert!(!html.contains("ledger-block"));
+    }
+
+    #[test]
+    fn the_footer_shows_the_key_id_and_its_randomart() {
+        let html = render_footer("{{pgp_fingerprint}} 0x{{pgp_keyid}} <pre>{{pgp_art}}</pre>");
+        assert!(html.starts_with("3C1BED5D0CF3A270BC690D3AD7D17E26F2FC3F3C 0xD7D17E26F2FC3F3C "));
+        assert!(html.contains("+---[RSA 3072]----+"));
+        assert!(html.contains("+-----[SHA1]------+"));
+    }
+
+    #[test]
+    fn each_post_gets_its_own_stamp() {
+        let mut a = post(FINDING).unwrap();
+        a.number = 4;
+        let mut b = post(FINDING).unwrap();
+        b.slug = "another-slug".into();
+        assert!(post_stamp(&a).starts_with("+--[LEDGER 004]---+"));
+        assert_ne!(post_stamp(&a), post_stamp(&b));
     }
 
     #[test]

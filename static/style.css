@@ -1498,7 +1498,8 @@ article .hp-table {
     font-variant-numeric: tabular-nums;
 }
 
-/* ---- Footer: provenance block (pgp, bitcoin, email) ---- */
+/* ---- Footer: provenance block (pgp, bitcoin, email) and the key's
+   randomart ---- */
 footer {
     font-family: var(--mono);
     font-size: var(--fs-mono-sm);
@@ -1515,6 +1516,26 @@ footer {
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+}
+
+/* Randomart, ssh-keygen style: the PGP key's in the footer, and each post's
+   own stamp at its end, both drawn by blog-gen. */
+.key-art,
+article pre.stamp {
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+    line-height: 1.15;
+    letter-spacing: 0;
+    color: var(--muted);
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    overflow: visible;
+}
+
+article pre.stamp {
+    width: fit-content;
+    margin: 3rem 0 0 auto;
 }
 
 .identity > div {
