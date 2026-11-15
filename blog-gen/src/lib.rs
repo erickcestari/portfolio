@@ -630,6 +630,16 @@ fn group_thousands(n: u64) -> String {
     out
 }
 
+/// Whether a finding is closed: "fixed" or "open". The ledger and the
+/// advisory box both colour by it, and the ledger filters on it.
+fn status_state(status: &str) -> &'static str {
+    if status.starts_with("fixed") {
+        "fixed"
+    } else {
+        "open"
+    }
+}
+
 fn render_post(tmpl: &str, p: &Post) -> String {
     let block = p.block.map_or(String::new(), |h| {
         format!(
@@ -677,33 +687,31 @@ fn render_ledger(tmpl: &str, posts: &[&Post]) -> String {
         let mut tags: Vec<String> = [&p.target, &p.bug]
             .into_iter()
             .filter(|t| !t.is_empty())
-            .map(|t| format!("<span>{}</span>", escape_html(t)))
+            .map(|t| {
+                let t = escape_html(t);
+                format!("<span class=\"ledger-tag\" data-tag=\"{t}\">{t}</span>")
+            })
             .collect();
         if !p.status.is_empty() {
-            let state = if p.status.starts_with("fixed") {
-                "is-fixed"
-            } else {
-                "is-open"
-            };
+            // Filtered by state, so "fixed in v0.14.1" and "fixed in v25.09" group.
+            let state = status_state(&p.status);
             tags.push(format!(
-                "<span class=\"ledger-status {state}\">{}</span>",
+                "<span class=\"ledger-tag ledger-status is-{state}\" data-tag=\"{state}\">{}</span>",
                 escape_html(&p.status)
             ));
         }
         let block = p.block.map_or(String::new(), |h| {
             format!(
-                "\n                        <span class=\"ledger-block\">block {}</span>",
+                "\n                    <span class=\"ledger-block\" data-height=\"{h}\">block {}</span>",
                 group_thousands(h)
             )
         });
         rows.push_str(&format!(
-            "                <li>
-                    <a class=\"ledger-row\" href=\"/blog/{slug}/\">
-                        <span class=\"ledger-no\">{number:03}</span>
-                        <span class=\"ledger-title\">{title}</span>
-                        <span class=\"ledger-tags\">{tags}</span>
-                        <time class=\"ledger-date\" datetime=\"{date}\">{date}</time>{block}
-                    </a>
+            "                <li class=\"ledger-row\">
+                    <span class=\"ledger-no\">{number:03}</span>
+                    <a class=\"ledger-title\" href=\"/blog/{slug}/\">{title}</a>
+                    <span class=\"ledger-tags\">{tags}</span>
+                    <time class=\"ledger-date\" datetime=\"{date}\">{date}</time>{block}
                 </li>\n",
             slug = p.slug,
             number = p.number,
@@ -838,10 +846,13 @@ target: eclair\nbug: OOM\nstatus: fixed in v0.14.1\nblock: 969369\n---\nBody.\n"
         p.number = 4;
         let html = render_ledger("{{items}}", &[&p]);
         assert!(html.contains("<span class=\"ledger-no\">004</span>"));
-        assert!(html.contains("<span class=\"ledger-title\">Crashing a &lt;node&gt;</span>"));
-        assert!(html.contains("<span>eclair</span><span>OOM</span>"));
-        assert!(html.contains("ledger-status is-fixed\">fixed in v0.14.1"));
-        assert!(html.contains("block 969,369"));
+        assert!(html.contains(
+            "<a class=\"ledger-title\" href=\"/blog/slug/\">Crashing a &lt;node&gt;</a>"
+        ));
+        assert!(html.contains("data-tag=\"eclair\">eclair</span>"));
+        assert!(html.contains("data-tag=\"OOM\">OOM</span>"));
+        assert!(html.contains("ledger-status is-fixed\" data-tag=\"fixed\">fixed in v0.14.1"));
+        assert!(html.contains("data-height=\"969369\">block 969,369<"));
     }
 
     #[test]
@@ -890,6 +901,6 @@ target: eclair\nbug: OOM\nstatus: fixed in v0.14.1\nblock: 969369\n---\nBody.\n"
     fn anything_but_fixed_is_marked_open() {
         let open = FINDING.replace("status: fixed in v0.14.1", "status: open");
         let html = render_ledger("{{items}}", &[&post(&open).unwrap()]);
-        assert!(html.contains("ledger-status is-open\">open"));
+        assert!(html.contains("ledger-status is-open\" data-tag=\"open\">open"));
     }
 }
