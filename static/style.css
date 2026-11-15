@@ -155,9 +155,12 @@ body {
 }
 
 /* ---- Night sky ----
-   Two fixed layers behind the page, painted below the content (negative
-   z-index puts them over the propagated body background but under everything
-   else): a handful of twinkling stars, then the static field over them. */
+   Two fixed layers of ASCII stars behind the page, painted below the content
+   (negative z-index puts them over the propagated body background but under
+   everything else): a handful of twinkling stars, then the static field over
+   them. Each is an SVG with no viewBox, so its % positions spread the glyphs
+   over the viewport without stretching them. sky.js scatters fresh ones on
+   every load; these fixed fields are the fallback. */
 html::before,
 body::before {
     content: "";
@@ -165,61 +168,21 @@ body::before {
     inset: 0;
     pointer-events: none;
     opacity: var(--scene-stars);
+    background-size: 100% 100%;
     background-repeat: no-repeat;
 }
 
-/* A handful of brighter stars, breathing out of phase with nothing else. */
+/* A handful of brighter "*" and "+", breathing out of phase with nothing else. */
 html::before {
     z-index: -2;
     animation: twinkle 11s ease-in-out infinite alternate;
-    background-image:
-        radial-gradient(1.8px 1.8px at 8.4% 12.6%, rgba(236, 231, 223, 0.75), transparent 100%),
-        radial-gradient(1.4px 1.4px at 27.2% 47.3%, rgba(236, 231, 223, 0.55), transparent 100%),
-        radial-gradient(1.6px 1.6px at 48.1% 8.2%, rgba(236, 231, 223, 0.7), transparent 100%),
-        radial-gradient(1.4px 1.4px at 71.5% 29.4%, rgba(236, 231, 223, 0.6), transparent 100%),
-        radial-gradient(1.6px 1.6px at 88.3% 15.1%, rgba(236, 231, 223, 0.75), transparent 100%),
-        radial-gradient(1.4px 1.4px at 82.0% 58.4%, rgba(236, 231, 223, 0.55), transparent 100%),
-        radial-gradient(1.4px 1.4px at 36.4% 66.2%, rgba(236, 231, 223, 0.6), transparent 100%);
+    background-image: var(--stars-bright, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25' font-family='monospace' fill='%23ece7df'%3E%3Ctext x='8.4%25' y='12.6%25' font-size='13' opacity='.75'%3E*%3C/text%3E%3Ctext x='27.2%25' y='47.3%25' font-size='11' opacity='.55'%3E+%3C/text%3E%3Ctext x='48.1%25' y='8.2%25' font-size='13' opacity='.7'%3E*%3C/text%3E%3Ctext x='71.5%25' y='29.4%25' font-size='11' opacity='.6'%3E+%3C/text%3E%3Ctext x='88.3%25' y='15.1%25' font-size='13' opacity='.75'%3E*%3C/text%3E%3Ctext x='82.0%25' y='58.4%25' font-size='11' opacity='.55'%3E+%3C/text%3E%3Ctext x='36.4%25' y='66.2%25' font-size='11' opacity='.6'%3E+%3C/text%3E%3C/svg%3E"));
 }
 
-/* The quiet field: many small, dim stars that never move. */
+/* The quiet field: many small, dim ".", "'" and "+" that never move. */
 body::before {
     z-index: -1;
-    background-image:
-        radial-gradient(1.2px 1.2px at 24.3% 40.7%, rgba(236, 231, 223, 0.5), transparent 100%),
-        radial-gradient(1px 1px at 62.3% 5.8%, rgba(236, 231, 223, 0.5), transparent 100%),
-        radial-gradient(1.4px 1.4px at 26.4% 18.1%, rgba(236, 231, 223, 0.5), transparent 100%),
-        radial-gradient(1px 1px at 39.9% 63.9%, rgba(236, 231, 223, 0.32), transparent 100%),
-        radial-gradient(1px 1px at 86.1% 39.2%, rgba(236, 231, 223, 0.25), transparent 100%),
-        radial-gradient(1px 1px at 16.6% 70.9%, rgba(236, 231, 223, 0.4), transparent 100%),
-        radial-gradient(1.2px 1.2px at 77.4% 61.1%, rgba(236, 231, 223, 0.5), transparent 100%),
-        radial-gradient(1.4px 1.4px at 59.3% 68.2%, rgba(236, 231, 223, 0.5), transparent 100%),
-        radial-gradient(1.4px 1.4px at 39.7% 59.5%, rgba(236, 231, 223, 0.32), transparent 100%),
-        radial-gradient(1px 1px at 87.1% 8.1%, rgba(236, 231, 223, 0.5), transparent 100%),
-        radial-gradient(1.4px 1.4px at 22.3% 71.5%, rgba(236, 231, 223, 0.4), transparent 100%),
-        radial-gradient(1.2px 1.2px at 42.3% 61.8%, rgba(236, 231, 223, 0.5), transparent 100%),
-        radial-gradient(1px 1px at 58.3% 67.0%, rgba(236, 231, 223, 0.4), transparent 100%),
-        radial-gradient(1px 1px at 98.1% 50.0%, rgba(236, 231, 223, 0.4), transparent 100%),
-        radial-gradient(1px 1px at 95.5% 67.0%, rgba(236, 231, 223, 0.32), transparent 100%),
-        radial-gradient(1.2px 1.2px at 63.0% 73.1%, rgba(236, 231, 223, 0.4), transparent 100%),
-        radial-gradient(1.4px 1.4px at 13.2% 36.2%, rgba(236, 231, 223, 0.25), transparent 100%),
-        radial-gradient(1px 1px at 34.7% 5.9%, rgba(236, 231, 223, 0.25), transparent 100%),
-        radial-gradient(1px 1px at 29.8% 57.1%, rgba(236, 231, 223, 0.25), transparent 100%),
-        radial-gradient(1.4px 1.4px at 60.3% 56.6%, rgba(236, 231, 223, 0.4), transparent 100%),
-        radial-gradient(1.2px 1.2px at 55.0% 68.3%, rgba(236, 231, 223, 0.32), transparent 100%),
-        radial-gradient(1px 1px at 98.9% 23.6%, rgba(236, 231, 223, 0.25), transparent 100%),
-        radial-gradient(1px 1px at 59.8% 3.3%, rgba(236, 231, 223, 0.5), transparent 100%),
-        radial-gradient(1px 1px at 29.6% 20.2%, rgba(236, 231, 223, 0.4), transparent 100%),
-        radial-gradient(1.4px 1.4px at 31.8% 71.0%, rgba(236, 231, 223, 0.5), transparent 100%),
-        radial-gradient(1px 1px at 46.1% 39.0%, rgba(236, 231, 223, 0.4), transparent 100%),
-        radial-gradient(1px 1px at 43.3% 53.6%, rgba(236, 231, 223, 0.4), transparent 100%),
-        radial-gradient(1.2px 1.2px at 43.9% 19.9%, rgba(236, 231, 223, 0.4), transparent 100%),
-        radial-gradient(1.2px 1.2px at 2.1% 31.3%, rgba(236, 231, 223, 0.25), transparent 100%),
-        radial-gradient(1px 1px at 37.9% 44.0%, rgba(236, 231, 223, 0.25), transparent 100%),
-        radial-gradient(1.2px 1.2px at 63.1% 25.3%, rgba(236, 231, 223, 0.4), transparent 100%),
-        radial-gradient(1.4px 1.4px at 60.7% 21.4%, rgba(236, 231, 223, 0.25), transparent 100%),
-        radial-gradient(1px 1px at 58.8% 70.7%, rgba(236, 231, 223, 0.4), transparent 100%),
-        radial-gradient(1.2px 1.2px at 25.6% 34.3%, rgba(236, 231, 223, 0.32), transparent 100%);
+    background-image: var(--stars-dim, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25' font-family='monospace' fill='%23ece7df'%3E%3Ctext x='24.3%25' y='40.7%25' font-size='12' opacity='.5'%3E%27%3C/text%3E%3Ctext x='62.3%25' y='5.8%25' font-size='12' opacity='.5'%3E.%3C/text%3E%3Ctext x='26.4%25' y='18.1%25' font-size='9' opacity='.5'%3E+%3C/text%3E%3Ctext x='39.9%25' y='63.9%25' font-size='12' opacity='.32'%3E.%3C/text%3E%3Ctext x='86.1%25' y='39.2%25' font-size='12' opacity='.25'%3E.%3C/text%3E%3Ctext x='16.6%25' y='70.9%25' font-size='12' opacity='.4'%3E.%3C/text%3E%3Ctext x='77.4%25' y='61.1%25' font-size='12' opacity='.5'%3E%27%3C/text%3E%3Ctext x='59.3%25' y='68.2%25' font-size='9' opacity='.5'%3E+%3C/text%3E%3Ctext x='39.7%25' y='59.5%25' font-size='9' opacity='.32'%3E+%3C/text%3E%3Ctext x='87.1%25' y='8.1%25' font-size='12' opacity='.5'%3E.%3C/text%3E%3Ctext x='22.3%25' y='71.5%25' font-size='9' opacity='.4'%3E+%3C/text%3E%3Ctext x='42.3%25' y='61.8%25' font-size='12' opacity='.5'%3E%27%3C/text%3E%3Ctext x='58.3%25' y='67.0%25' font-size='12' opacity='.4'%3E.%3C/text%3E%3Ctext x='98.1%25' y='50.0%25' font-size='12' opacity='.4'%3E.%3C/text%3E%3Ctext x='95.5%25' y='67.0%25' font-size='12' opacity='.32'%3E.%3C/text%3E%3Ctext x='63.0%25' y='73.1%25' font-size='12' opacity='.4'%3E%27%3C/text%3E%3Ctext x='13.2%25' y='36.2%25' font-size='9' opacity='.25'%3E+%3C/text%3E%3Ctext x='34.7%25' y='5.9%25' font-size='12' opacity='.25'%3E.%3C/text%3E%3Ctext x='29.8%25' y='57.1%25' font-size='12' opacity='.25'%3E.%3C/text%3E%3Ctext x='60.3%25' y='56.6%25' font-size='9' opacity='.4'%3E+%3C/text%3E%3Ctext x='55.0%25' y='68.3%25' font-size='12' opacity='.32'%3E%27%3C/text%3E%3Ctext x='98.9%25' y='23.6%25' font-size='12' opacity='.25'%3E.%3C/text%3E%3Ctext x='59.8%25' y='3.3%25' font-size='12' opacity='.5'%3E.%3C/text%3E%3Ctext x='29.6%25' y='20.2%25' font-size='12' opacity='.4'%3E.%3C/text%3E%3Ctext x='31.8%25' y='71.0%25' font-size='9' opacity='.5'%3E+%3C/text%3E%3Ctext x='46.1%25' y='39.0%25' font-size='12' opacity='.4'%3E.%3C/text%3E%3Ctext x='43.3%25' y='53.6%25' font-size='12' opacity='.4'%3E.%3C/text%3E%3Ctext x='43.9%25' y='19.9%25' font-size='12' opacity='.4'%3E%27%3C/text%3E%3Ctext x='2.1%25' y='31.3%25' font-size='12' opacity='.25'%3E%27%3C/text%3E%3Ctext x='37.9%25' y='44.0%25' font-size='12' opacity='.25'%3E.%3C/text%3E%3Ctext x='63.1%25' y='25.3%25' font-size='12' opacity='.4'%3E%27%3C/text%3E%3Ctext x='60.7%25' y='21.4%25' font-size='9' opacity='.25'%3E+%3C/text%3E%3Ctext x='58.8%25' y='70.7%25' font-size='12' opacity='.4'%3E.%3C/text%3E%3Ctext x='25.6%25' y='34.3%25' font-size='12' opacity='.32'%3E%27%3C/text%3E%3C/svg%3E"));
 }
 
 @keyframes twinkle {
@@ -293,6 +256,30 @@ header nav a {
 
 header nav a:hover {
     color: var(--ink);
+}
+
+/* The hovered link is bracketed like a menu entry; the brackets hang
+   outside it so the row does not shift. */
+header nav a {
+    position: relative;
+}
+
+header nav a:hover::before,
+header nav a:hover::after {
+    position: absolute;
+    color: var(--muted);
+}
+
+/* No extra gap on the left: the "[" carries its own trailing tracking,
+   matching the tracking after the link's last letter. */
+header nav a:hover::before {
+    content: "[";
+    right: 100%;
+}
+
+header nav a:hover::after {
+    content: "]";
+    left: 100%;
 }
 
 header nav a:first-child {
@@ -829,11 +816,27 @@ sup.footnote-reference a {
 .ledger-status.is-fixed { color: var(--ok); }
 .ledger-status.is-open  { color: var(--accent); }
 
-.ledger-row:hover .ledger-no {
+.ledger-row:hover .ledger-no,
+.ledger-row:has(.ledger-title:focus-visible) .ledger-no {
     color: var(--accent);
 }
 
-.ledger-row:hover .ledger-title {
+/* A terminal cursor hangs left of the row under the pointer, outside the
+   grid so nothing shifts. */
+.ledger-no {
+    position: relative;
+}
+
+.ledger-row:hover .ledger-no::before,
+.ledger-row:has(.ledger-title:focus-visible) .ledger-no::before {
+    content: ">";
+    position: absolute;
+    right: calc(100% + 0.6em);
+    color: var(--accent);
+}
+
+.ledger-row:hover .ledger-title,
+.ledger-row:has(.ledger-title:focus-visible) .ledger-title {
     text-decoration: underline;
     text-decoration-color: color-mix(in oklab, var(--accent) 65%, transparent);
     text-underline-offset: 3px;
