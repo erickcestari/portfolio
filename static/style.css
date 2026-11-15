@@ -1878,6 +1878,75 @@ article pre.stamp {
     line-height: 1.3;
 }
 
+/* ---- A finding at a glance: blog-gen's advisory box under the post meta ---- */
+.advisory {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: 0.3rem 1.5rem;
+    margin: -0.75rem 0 2rem;
+    padding: 0.8rem 1.1rem;
+    border: var(--border) solid var(--rule);
+    border-radius: var(--radius-md);
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+    line-height: 1.5;
+}
+
+.advisory div {
+    display: flex;
+    gap: 1ch;
+}
+
+.advisory dt {
+    flex: 0 0 9ch;
+    color: var(--muted);
+}
+
+.advisory dd {
+    color: var(--ink-2);
+}
+
+.advisory .is-fixed { color: var(--ok); }
+.advisory .is-open  { color: var(--accent); }
+
+.advisory-gap {
+    color: var(--muted);
+}
+
+/* ---- Older and newer posts, after the article ---- */
+.post-nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-top: 3rem;
+    padding-top: 1.25rem;
+    border-top: var(--border) solid var(--rule);
+}
+
+.post-nav a {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    color: var(--ink);
+    text-decoration: none;
+    line-height: 1.3;
+}
+
+.post-nav a:hover {
+    color: var(--accent);
+}
+
+.post-nav-next {
+    grid-column: 2;
+    text-align: right;
+}
+
+.post-nav-label {
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+    color: var(--muted);
+}
+
 /* ---- The blog page's line about the feed ---- */
 .feed-link {
     margin: -0.25rem 0 1.75rem;
@@ -1999,6 +2068,14 @@ article img.is-zoomable {
 }
 
 @media (max-width: 600px) {
+    .post-nav {
+        grid-template-columns: 1fr;
+    }
+
+    .post-nav-next {
+        grid-column: 1;
+    }
+
     body {
         padding: var(--content-pad-sm);
         font-size: var(--fs-body-sm);
@@ -2131,7 +2208,9 @@ article img.is-zoomable {
         padding: 0;
     }
 
-    header, footer, nav, .toc {
+    header, footer, nav, .toc, .read-progress, .to-top, .toast, .copy,
+    .post-nav, .resume, .ledger-filter,
+    .fortune, .keys-help, .meteor, .snow, .cat {
         display: none;
     }
 

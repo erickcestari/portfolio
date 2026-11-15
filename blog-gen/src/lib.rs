@@ -36,6 +36,12 @@ struct Post {
     target: String,
     bug: String,
     status: String,
+    /// Advisory details, shown when given: affected versions and CVE ids, as
+    /// written in the frontmatter.
+    affected: String,
+    cve: String,
+    /// The day the finding was reported: the first date of the post's Timeline.
+    reported: Option<String>,
     /// Bitcoin block height on the publication date.
     block: Option<u64>,
     /// Publication order, 1 for the oldest post.
@@ -113,10 +119,16 @@ pub fn generate(root: &Path) -> Result<usize, String> {
 
     fs::create_dir_all(&out_dir).map_err(|e| format!("create {}: {e}", out_dir.display()))?;
 
-    for (post, asset_dir) in &posts {
+    // Newest first, so the next index down the list is the older post.
+    for (i, (post, asset_dir)) in posts.iter().enumerate() {
+        let newer = i.checked_sub(1).map(|j| &posts[j].0);
+        let older = posts.get(i + 1).map(|(p, _)| p);
         let dir = out_dir.join(&post.slug);
         fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
-        write(&dir.join("index.html"), render_post(&post_tmpl, post))?;
+        write(
+            &dir.join("index.html"),
+            render_post(&post_tmpl, post, older, newer),
+        )?;
         if let Some(src) = asset_dir {
             copy_assets(src, &dir)?;
         }
@@ -239,6 +251,8 @@ fn parse_source(
     let mut target = String::new();
     let mut bug = String::new();
     let mut status = String::new();
+    let mut affected = String::new();
+    let mut cve = String::new();
     let mut block = None;
 
     for line in meta.lines() {
@@ -259,6 +273,8 @@ fn parse_source(
             "target" => target = val,
             "bug" => bug = val,
             "status" => status = val,
+            "affected" => affected = val,
+            "cve" => cve = val,
             "block" => {
                 let height = val
                     .parse::<u64>()
@@ -277,6 +293,7 @@ fn parse_source(
     }
 
     let (html_out, headings) = render_markdown(body, hl);
+    let reported = timeline::first_date(&html_out).map(str::to_string);
     let toc = render_toc(&headings);
     let reading_time = estimate_reading_minutes(body);
 
@@ -288,6 +305,9 @@ fn parse_source(
         target,
         bug,
         status,
+        affected,
+        cve,
+        reported,
         block,
         number: 0,
         cover,
@@ -640,7 +660,85 @@ fn status_state(status: &str) -> &'static str {
     }
 }
 
-fn render_post(tmpl: &str, p: &Post) -> String {
+/// A finding at a glance, for the reader who only needs to know whether they
+/// are affected: what broke, how, where it stands, and the disclosure dates.
+/// Empty for posts that are not findings.
+fn render_advisory(p: &Post) -> String {
+    if p.target.is_empty() && p.status.is_empty() {
+        return String::new();
+    }
+    let mut rows: Vec<(&str, String)> = Vec::new();
+    if !p.target.is_empty() {
+        rows.push(("target", escape_html(&p.target)));
+    }
+    if !p.bug.is_empty() {
+        rows.push(("issue", escape_html(&p.bug)));
+    }
+    if !p.affected.is_empty() {
+        rows.push(("affected", escape_html(&p.affected)));
+    }
+    if !p.status.is_empty() {
+        rows.push((
+            "status",
+            format!(
+                "<span class=\"is-{}\">{}</span>",
+                status_state(&p.status),
+                escape_html(&p.status)
+            ),
+        ));
+    }
+    if !p.cve.is_empty() {
+        let links: Vec<String> = p
+            .cve
+            .split(',')
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .map(|id| {
+                let id = escape_html(id);
+                format!("<a href=\"https://www.cve.org/CVERecord?id={id}\">{id}</a>")
+            })
+            .collect();
+        rows.push(("cve", links.join(", ")));
+    }
+    if let Some(reported) = &p.reported {
+        rows.push(("reported", escape_html(reported)));
+    }
+    let embargo = p
+        .reported
+        .as_deref()
+        .and_then(|r| Some(timeline::days_from_iso(&p.date)? - timeline::days_from_iso(r)?))
+        .map_or(String::new(), |days| {
+            format!(" <span class=\"advisory-gap\">({days} days later)</span>")
+        });
+    rows.push(("disclosed", format!("{}{embargo}", escape_html(&p.date))));
+
+    let items: String = rows
+        .iter()
+        .map(|(key, value)| format!("<div><dt>{key}</dt><dd>{value}</dd></div>"))
+        .collect();
+    format!("<dl class=\"advisory\">{items}</dl>")
+}
+
+/// Links to the posts on either side, older on the left like a timeline.
+fn render_post_nav(older: Option<&Post>, newer: Option<&Post>) -> String {
+    if older.is_none() && newer.is_none() {
+        return String::new();
+    }
+    let link = |p: &Post, rel: &str, label: &str| {
+        format!(
+            "<a class=\"post-nav-{rel}\" rel=\"{rel}\" href=\"/blog/{slug}/\"><span class=\"post-nav-label\">{label}</span>{title}</a>",
+            slug = p.slug,
+            title = escape_html(&p.title),
+        )
+    };
+    format!(
+        "<nav class=\"post-nav\" aria-label=\"More posts\">{}{}</nav>",
+        older.map_or(String::new(), |p| link(p, "prev", "&lt;- older")),
+        newer.map_or(String::new(), |p| link(p, "next", "newer -&gt;")),
+    )
+}
+
+fn render_post(tmpl: &str, p: &Post, older: Option<&Post>, newer: Option<&Post>) -> String {
     let block = p.block.map_or(String::new(), |h| {
         format!(
             "<span class=\"block-height\"><a href=\"https://mempool.space/block/{h}\">block {}</a></span>",
@@ -673,6 +771,8 @@ fn render_post(tmpl: &str, p: &Post) -> String {
         .replace("{{slug}}", &p.slug)
         .replace("{{url}}", &format!("{}/blog/{}/", SITE_URL, p.slug))
         .replace("{{block}}", &block)
+        .replace("{{advisory}}", &render_advisory(p))
+        .replace("{{post_nav}}", &render_post_nav(older, newer))
         .replace("{{toc}}", &p.toc)
         .replace("{{reading_time}}", &p.reading_time.to_string())
         .replace("{{stamp}}", &escape_html(&post_stamp(p)))
@@ -862,6 +962,55 @@ target: eclair\nbug: OOM\nstatus: fixed in v0.14.1\nblock: 969369\n---\nBody.\n"
         assert!(html.contains("<span class=\"ledger-tags\"></span>"));
         assert!(!html.contains("ledger-status"));
         assert!(!html.contains("ledger-block"));
+    }
+
+    const DISCLOSED: &str = "---\ntitle: Crashing a node\ndate: 2026-09-30\n\
+target: eclair\nbug: OOM\nstatus: fixed in v0.14.1\n---\nBody.\n\n## Timeline\n\n\
+- **2026-07-04:** Reported privately.\n- **2026-09-30:** Public disclosure.\n";
+
+    #[test]
+    fn the_advisory_dates_the_report_from_the_timeline() {
+        let p = post(DISCLOSED).unwrap();
+        assert_eq!(p.reported.as_deref(), Some("2026-07-04"));
+        let html = render_advisory(&p);
+        assert!(html.contains("<dt>target</dt><dd>eclair</dd>"));
+        assert!(html.contains("<dt>issue</dt><dd>OOM</dd>"));
+        assert!(html.contains("<dd><span class=\"is-fixed\">fixed in v0.14.1</span></dd>"));
+        assert!(html.contains("<dt>reported</dt><dd>2026-07-04</dd>"));
+        assert!(html.contains("2026-09-30 <span class=\"advisory-gap\">(88 days later)</span>"));
+    }
+
+    #[test]
+    fn the_advisory_shows_affected_and_cves_only_when_given() {
+        let plain = render_advisory(&post(DISCLOSED).unwrap());
+        assert!(!plain.contains("affected") && !plain.contains("cve"));
+
+        let detailed = DISCLOSED.replace(
+            "status:",
+            "affected: < v0.14.1\ncve: CVE-2026-0001, CVE-2026-0002\nstatus:",
+        );
+        let html = render_advisory(&post(&detailed).unwrap());
+        assert!(html.contains("<dt>affected</dt><dd>&lt; v0.14.1</dd>"));
+        assert!(html.contains("?id=CVE-2026-0001\">CVE-2026-0001</a>, <a"));
+    }
+
+    #[test]
+    fn an_essay_gets_no_advisory() {
+        let p = post("---\ntitle: Notes\ndate: 2026-01-01\n---\nBody.\n").unwrap();
+        assert_eq!(render_advisory(&p), "");
+    }
+
+    #[test]
+    fn a_post_links_its_neighbours_older_first() {
+        let mut older = post(FINDING).unwrap();
+        older.slug = "older".into();
+        let mut newer = post(FINDING).unwrap();
+        newer.slug = "newer".into();
+        let nav = render_post_nav(Some(&older), Some(&newer));
+        let prev = nav.find("rel=\"prev\" href=\"/blog/older/\"").unwrap();
+        let next = nav.find("rel=\"next\" href=\"/blog/newer/\"").unwrap();
+        assert!(prev < next);
+        assert_eq!(render_post_nav(None, None), "");
     }
 
     #[test]
