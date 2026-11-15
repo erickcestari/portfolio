@@ -1846,7 +1846,7 @@ article pre.stamp {
 }
 
 /* ---- `$ fortune` in the footer (footer.js) ---- */
-/* Under the honeypot line. Contained, so a long quote wraps to the column's
+/* Under the contact lines. Contained, so a long quote wraps to the column's
    width instead of widening it into the key art. */
 .fortune {
     margin-top: 1rem;
