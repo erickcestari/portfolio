@@ -1386,21 +1386,41 @@ button.ledger-tag[aria-pressed="true"] {
     color: var(--ink-2);
 }
 
+/* The entry for the section named in the URL (post.js): accent, with a
+   cursor hanging to its left like the post list's. */
+.toc a[aria-current="location"],
+.contents-sheet a[aria-current="location"] {
+    position: relative;
+    color: var(--accent);
+}
+
+.toc a[aria-current="location"]::before,
+.contents-sheet a[aria-current="location"]::before {
+    content: ">";
+    position: absolute;
+    right: calc(100% + 0.45em);
+    font-family: var(--mono);
+    font-style: normal;
+}
+
 /* Wide-viewport: float the TOC into the right margin as marginalia. It starts
    26rem right of centre and is 15rem wide, so below ~86rem it would run off
    the edge. */
 @media (min-width: 86rem) {
+    /* The left padding holds the current entry's ">" inside the scrolling
+       box, which would clip it; the box shifts left by as much, so the text
+       stays put. */
     .toc {
         position: fixed;
         top: 3rem;
-        left: calc(50% + 26rem);
-        width: 15rem;
+        left: calc(50% + 26rem - 1.2em);
+        width: calc(15rem + 1.2em);
         max-height: calc(100vh - 6rem);
         overflow-y: auto;
         margin-bottom: 0;
         background: transparent;
         border-radius: 0;
-        padding: 0;
+        padding: 0 0 0 1.2em;
     }
 
     .toc summary {
@@ -1412,6 +1432,54 @@ button.ledger-tag[aria-pressed="true"] {
     .toc summary::before,
     .toc details[open] summary::before { content: none; }
     .toc ul { margin-top: 0; }
+}
+
+/* ---- Code blocks: a [copy] button in the corner (post.js) ---- */
+.code {
+    position: relative;
+}
+
+.copy {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.45rem;
+    padding: 0.1rem 0.35rem;
+    border: none;
+    background: var(--bg-2);
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+    color: var(--muted);
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity var(--transition), color var(--transition);
+}
+
+.copy::before,
+.copy-inline::before { content: "["; }
+.copy::after,
+.copy-inline::after  { content: "]"; }
+
+/* Softer than the label, but brighter than the rule colour, which all but
+   vanishes on the code block's tint. */
+.copy::before,
+.copy::after,
+.copy-inline::before,
+.copy-inline::after {
+    color: color-mix(in oklab, var(--muted) 60%, transparent);
+}
+
+.code:hover .copy,
+.copy:focus-visible {
+    opacity: 1;
+}
+
+.copy:hover {
+    color: var(--ink);
+}
+
+.copy:hover::before,
+.copy:hover::after {
+    color: var(--accent);
 }
 
 /* ---- CHIP-8 on the 404 page: keypad beside the screen, ROM controls below ---- */
@@ -1660,6 +1728,102 @@ article pre.stamp {
     font-family: var(--mono);
 }
 
+/* ---- Reading progress on posts: a text bar in the top corner, drawn by
+   post.html's script once the reader starts scrolling ---- */
+.read-progress {
+    position: fixed;
+    top: 0.75rem;
+    right: 1rem;
+    z-index: 10;
+    padding: 0.1rem 0.45rem;
+    border: none;
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+    white-space: pre;
+    color: var(--muted);
+    background: var(--bg);
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-slow), visibility var(--transition-slow);
+}
+
+.read-progress.is-reading {
+    opacity: 1;
+    visibility: visible;
+}
+
+.read-progress:hover {
+    color: var(--ink);
+}
+
+/* A post with no contents keeps the bar as a gauge only. */
+.read-progress:disabled {
+    color: var(--muted);
+    cursor: default;
+    pointer-events: none;
+}
+
+/* ---- Back to top: "[^ top]" in the bottom corner once the reader has
+   scrolled. "#top" scrolls to the page's start with no element to target;
+   while hidden, visibility keeps it out of the tab order. ---- */
+.to-top,
+.toast {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 10;
+    padding: 0.15rem 0.45rem;
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+    color: var(--muted);
+    background: var(--bg);
+    text-decoration: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-slow), visibility var(--transition-slow), color var(--transition);
+}
+
+.to-top::before,
+.toast::before { content: "["; }
+.to-top::after,
+.toast::after  { content: "]"; }
+
+.to-top::before,
+.to-top::after,
+.toast::before,
+.toast::after {
+    color: var(--rule);
+    transition: color var(--transition);
+}
+
+.to-top:visited {
+    color: var(--muted);
+}
+
+.to-top:hover {
+    color: var(--ink);
+}
+
+.to-top:hover::before,
+.to-top:hover::after {
+    color: var(--accent);
+}
+
+.to-top.is-shown,
+.toast.is-shown {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* "[link copied]" after a heading click, centred at the bottom. */
+.toast {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
 /* ---- The keyboard shortcuts box, on "?" (keys.js) ---- */
 .keys-help {
     margin: auto;
@@ -1677,6 +1841,104 @@ article pre.stamp {
     font-family: var(--mono);
     font-size: var(--fs-mono-md);
     line-height: 1.3;
+}
+
+/* ---- "continue at 42%" when a post is reopened (post.js) ---- */
+.resume {
+    position: fixed;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    z-index: 11;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.3rem 0.6rem;
+    border: var(--border) solid var(--rule);
+    background: var(--bg-2);
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+}
+
+.resume button {
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    color: var(--ink-2);
+    cursor: pointer;
+}
+
+.resume button::before { content: "["; color: var(--muted); }
+.resume button::after  { content: "]"; color: var(--muted); }
+
+.resume button:hover {
+    color: var(--accent);
+}
+
+/* ---- Panels (post.js): the contents, opened from the progress bar under
+   it, and a figure at full size ---- */
+.contents-sheet {
+    margin: 3.25rem 1rem auto auto;
+    width: min(22rem, calc(100vw - 2rem));
+    max-height: 75vh;
+    padding: 1rem 1.25rem 1rem 1.75rem;
+    border: var(--border) solid var(--rule);
+    background: var(--bg);
+    color: var(--ink-2);
+    font-size: var(--fs-toc);
+    overflow-y: auto;
+}
+
+/* The panel takes focus as a whole when it opens; it needs no ring. */
+.contents-sheet:focus-visible,
+.zoom:focus-visible {
+    outline: none;
+}
+
+.contents-sheet ul {
+    list-style: none;
+}
+
+.contents-sheet li {
+    margin-bottom: 0.35rem;
+    line-height: var(--lh-snug);
+}
+
+.contents-sheet li.toc-h3 {
+    padding-left: 1.25rem;
+    font-style: italic;
+}
+
+.contents-sheet a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.contents-sheet::backdrop,
+.zoom::backdrop {
+    background: color-mix(in oklab, var(--bg) 75%, transparent);
+}
+
+.zoom {
+    margin: auto;
+    padding: 0;
+    border: none;
+    background: none;
+    max-width: 96vw;
+    max-height: 94vh;
+    overflow: visible;
+    cursor: zoom-out;
+}
+
+.zoom img {
+    display: block;
+    max-width: 96vw;
+    max-height: 94vh;
+}
+
+article img.is-zoomable {
+    cursor: zoom-in;
 }
 
 @media (max-width: 600px) {
