@@ -190,10 +190,6 @@ body::before {
     to   { opacity: var(--scene-stars); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    html::before { animation: none; }
-}
-
 /* ---- Paper ----
    The day theme's counterpart to the night sky: a fixed fibre grain under the
    page, one small noise tile so it costs a few hundred bytes and no requests. */
@@ -205,6 +201,206 @@ html::after {
     pointer-events: none;
     opacity: calc(var(--scene-grain) * 0.45);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .25 0 0 0 0 .19 0 0 0 0 .11 0 0 0 .5 -.12'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+
+/* ---- Sky ----
+   ASCII figures over the stars and the paper: the moon by night and a sun by
+   day, out in the right margin where they clear the text; two constellations,
+   a lightning bolt low on the left and a bitcoin sign low on the right; and
+   clouds drifting across the day. They ride on the pseudo-elements of
+   header, main and footer; print turns the sky off. Shooting stars come
+   from sky.js (".meteor", below). The places below are the fallback: on every load sky.js
+   decides which figures are out and scatters them across the margins. */
+header::before,
+header::after,
+main::before,
+main::after,
+footer::after {
+    position: fixed;
+    z-index: -1;
+    pointer-events: none;
+    font-family: var(--mono);
+    white-space: pre;
+}
+
+/* Only where the margin is wide enough to hold them. */
+@media (min-width: 75rem) {
+    header::before,
+    header::after {
+        top: 9vh;
+        right: 7vw;
+        font-size: 13px;
+        line-height: 1.1;
+    }
+
+    /* sky.js swaps in tonight's phase; without it, a crescent. */
+    header::before {
+        content: var(--moon-art,
+            "       _.--._\A"
+            "    .-'   .-'\A"
+            "  .'    .'\A"
+            " /     /\A"
+            "|     |\A"
+            "|     |\A"
+            " \\     \\\A"
+            "  '.    '.\A"
+            "    '-.   '-.\A"
+            "       '----'");
+        color: var(--ink);
+        text-shadow: 0 0 8px color-mix(in oklab, var(--ink) 35%, transparent);
+        opacity: calc(var(--scene-stars) * 0.55);
+    }
+
+    header::after {
+        content:
+            "      |\A"
+            "  \\   |   /\A"
+            "    .-\"-.\A"
+            "-- (     ) --\A"
+            "    '-.-'\A"
+            "  /   |   \\\A"
+            "      |";
+        color: var(--accent);
+        opacity: calc(var(--scene-grain) * 0.5);
+    }
+
+    /* Four stars in the shape of a lightning bolt, for whoever notices. */
+    main::before {
+        content: "";
+        left: 5vw;
+        bottom: 14vh;
+        width: 120px;
+        height: 166px;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='166' font-family='monospace' fill='%23ece7df' stroke='%23ece7df'%3E%3Cline x1='80.8' y1='19.4' x2='43.2' y2='72.6' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='47.0' y1='79.1' x2='71.0' y2='76.9' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='75.1' y1='83.5' x2='34.9' y2='144.5' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Ctext x='86' y='12' font-size='15' text-anchor='middle' dominant-baseline='central' stroke='none'%3E*%3C/text%3E%3Ctext x='38' y='80' font-size='12' text-anchor='middle' dominant-baseline='central' stroke='none'%3E+%3C/text%3E%3Ctext x='80' y='76' font-size='12' text-anchor='middle' dominant-baseline='central' stroke='none'%3E+%3C/text%3E%3Ctext x='30' y='152' font-size='15' text-anchor='middle' dominant-baseline='central' stroke='none'%3E*%3C/text%3E%3C/svg%3E") no-repeat;
+        opacity: calc(var(--scene-stars) * 0.7);
+    }
+
+    /* And twelve in the shape of a bitcoin sign: the B, its two bowls, and
+       the strokes through its top and bottom. */
+    main::after {
+        content: "";
+        right: 6vw;
+        bottom: 12vh;
+        width: 112px;
+        height: 172px;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='112' height='172' font-family='monospace' fill='%23ece7df' stroke='%23ece7df'%3E%3Cline x1='38.0' y1='30.0' x2='58.0' y2='30.0' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='70.7' y1='36.5' x2='79.3' y2='48.5' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='79.9' y1='61.9' x2='72.1' y2='75.1' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='60.0' y1='82.0' x2='38.0' y2='82.0' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='73.0' y1='88.2' x2='87.0' y2='105.8' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='87.6' y1='118.7' x2='76.4' y2='135.3' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='64.0' y1='142.0' x2='38.0' y2='142.0' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='30.0' y1='38.0' x2='30.0' y2='74.0' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='30.0' y1='90.0' x2='30.0' y2='134.0' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='44.0' y1='16.0' x2='44.0' y2='30.0' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='60.0' y1='16.0' x2='60.0' y2='30.0' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='44.0' y1='156.0' x2='44.0' y2='142.0' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Cline x1='60.0' y1='156.0' x2='60.0' y2='142.0' stroke-opacity='.45' stroke-dasharray='1 5' stroke-linecap='round'/%3E%3Ctext x='30' y='30' font-size='15' text-anchor='middle' dominant-baseline='central' stroke='none'%3E*%3C/text%3E%3Ctext x='66' y='30' font-size='12' text-anchor='middle' dominant-baseline='central' stroke='none'%3E+%3C/text%3E%3Ctext x='84' y='55' font-size='13' text-anchor='middle' dominant-baseline='central' stroke='none'%3E*%3C/text%3E%3Ctext x='68' y='82' font-size='12' text-anchor='middle' dominant-baseline='central' stroke='none'%3E+%3C/text%3E%3Ctext x='30' y='82' font-size='12' text-anchor='middle' dominant-baseline='central' stroke='none'%3E+%3C/text%3E%3Ctext x='92' y='112' font-size='15' text-anchor='middle' dominant-baseline='central' stroke='none'%3E*%3C/text%3E%3Ctext x='72' y='142' font-size='12' text-anchor='middle' dominant-baseline='central' stroke='none'%3E+%3C/text%3E%3Ctext x='30' y='142' font-size='15' text-anchor='middle' dominant-baseline='central' stroke='none'%3E*%3C/text%3E%3Ctext x='44' y='8' font-size='10' text-anchor='middle' dominant-baseline='central' stroke='none'%3E+%3C/text%3E%3Ctext x='60' y='8' font-size='10' text-anchor='middle' dominant-baseline='central' stroke='none'%3E+%3C/text%3E%3Ctext x='44' y='164' font-size='10' text-anchor='middle' dominant-baseline='central' stroke='none'%3E+%3C/text%3E%3Ctext x='60' y='164' font-size='10' text-anchor='middle' dominant-baseline='central' stroke='none'%3E+%3C/text%3E%3C/svg%3E") no-repeat;
+        opacity: calc(var(--scene-stars) * 0.7);
+    }
+
+    /* Once sky.js has scattered the figures, its places win over the fixed
+       ones above, and a figure with no room this load stays hidden. */
+    :root[data-sky] header::before,
+    :root[data-sky] header::after {
+        left: var(--moon-left);
+        top: var(--moon-top);
+        right: auto;
+        display: var(--moon-display);
+    }
+
+    :root[data-sky] main::before {
+        left: var(--bolt-left);
+        top: var(--bolt-top);
+        bottom: auto;
+        display: var(--bolt-display);
+    }
+
+    :root[data-sky] main::after {
+        left: var(--btc-left);
+        top: var(--btc-top);
+        right: auto;
+        bottom: auto;
+        display: var(--btc-display);
+    }
+}
+
+/* Where a post's contents float in the right margin, the moon and sun step
+   over to the left one, and the bitcoin sign, which a long contents list
+   would run into, sits this page out. */
+@media (min-width: 86rem) {
+    body:has(.toc) header::before,
+    body:has(.toc) header::after {
+        right: auto;
+        left: 7vw;
+    }
+
+    body:has(.toc) main::after {
+        display: none;
+    }
+}
+
+/* The clouds: one 1600px tile repeated along a strip one tile wider than
+   the screen, slid left by exactly one tile so the loop has no seam. */
+footer::after {
+    content: "";
+    z-index: -2;
+    top: 0;
+    left: 0;
+    width: calc(100vw + 1600px);
+    height: 520px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='520' font-family='monospace' font-size='13' fill='%2335312a'%3E%3Ctext x='60' y='70.0' xml:space='preserve'%3E       .--.%3C/text%3E%3Ctext x='60' y='84.3' xml:space='preserve'%3E    .-%28    %29.-.%3C/text%3E%3Ctext x='60' y='98.6' xml:space='preserve'%3E   %28            %29%3C/text%3E%3Ctext x='60' y='112.9' xml:space='preserve'%3E    %27-.__.-.__.%27%3C/text%3E%3Ctext x='520' y='210.0' xml:space='preserve'%3E     .-.%3C/text%3E%3Ctext x='520' y='224.3' xml:space='preserve'%3E  .-%28   %29-.%3C/text%3E%3Ctext x='520' y='238.6' xml:space='preserve'%3E %28___.__%29__%29%3C/text%3E%3Ctext x='900' y='130.0' xml:space='preserve'%3E       .--.%3C/text%3E%3Ctext x='900' y='144.3' xml:space='preserve'%3E    .-%28    %29.-.%3C/text%3E%3Ctext x='900' y='158.6' xml:space='preserve'%3E   %28            %29%3C/text%3E%3Ctext x='900' y='172.9' xml:space='preserve'%3E    %27-.__.-.__.%27%3C/text%3E%3Ctext x='1280' y='300.0' xml:space='preserve'%3E     .-.%3C/text%3E%3Ctext x='1280' y='314.3' xml:space='preserve'%3E  .-%28   %29-.%3C/text%3E%3Ctext x='1280' y='328.6' xml:space='preserve'%3E %28___.__%29__%29%3C/text%3E%3Ctext x='150' y='420.0' xml:space='preserve'%3E     .-.%3C/text%3E%3Ctext x='150' y='434.3' xml:space='preserve'%3E  .-%28   %29-.%3C/text%3E%3Ctext x='150' y='448.6' xml:space='preserve'%3E %28___.__%29__%29%3C/text%3E%3C/svg%3E") 0 0 / 1600px 520px repeat-x;
+    opacity: calc(var(--scene-grain) * 0.28);
+    animation: drift 240s linear infinite;
+}
+
+@keyframes drift {
+    to { transform: translateX(-1600px); }
+}
+
+/* Shooting stars from sky.js: a head and a trail that fades behind it, once
+   across. The shower's (on "satoshi", and on Bitcoin's birthdays) cross over
+   the page in either theme; the occasional ambient one keeps behind the text
+   and to the night. */
+.meteor {
+    position: fixed;
+    z-index: 5;
+    pointer-events: none;
+    font-family: var(--mono);
+    font-size: 12px;
+    white-space: pre;
+    color: var(--ink);
+    mask-image: linear-gradient(to right, #000 10%, transparent);
+    animation: streak 1.1s linear both;
+}
+
+/* Faces draw "*" above the middle of "-"; sky.js measures by how much in the
+   face in use, and the head drops into line with its trail. */
+.meteor-head {
+    position: relative;
+    top: var(--meteor-drop, 0.2em);
+}
+
+.meteor.is-ambient {
+    z-index: -1;
+    filter: opacity(var(--scene-stars));
+}
+
+/* Rotated so the trail points back along the path, (-2, 1). */
+@keyframes streak {
+    from { opacity: 0; transform: translate(0, 0) rotate(-26.57deg); }
+    10%  { opacity: 1; }
+    to   { opacity: 0; transform: translate(-30vw, 15vw) rotate(-26.57deg); }
+}
+
+/* December snow from sky.js: each flake falls the height of the screen,
+   drifting sideways by its own --sway. */
+.snow {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.snow span {
+    position: absolute;
+    top: -2rem;
+    font-family: var(--mono);
+    color: var(--ink);
+    animation: snowfall linear infinite;
+}
+
+@keyframes snowfall {
+    to { transform: translate(var(--sway), calc(100vh + 2rem)); }
 }
 
 ::selection {
