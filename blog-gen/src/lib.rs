@@ -144,9 +144,12 @@ pub fn generate(root: &Path) -> Result<usize, String> {
     Ok(posts.len())
 }
 
+const DOCTYPE: &str = "<!DOCTYPE html>\n";
+
 /// The chrome shared by every page, injected wherever a template says
-/// `{{header}}` / `{{footer}}`.
+/// `{{header}}` / `{{footer}}`, plus the note for readers of the source.
 struct Layout {
+    source_note: String,
     header: String,
     footer: String,
 }
@@ -155,6 +158,7 @@ impl Layout {
     fn load(templates_dir: &Path) -> Result<Self, String> {
         let partials = templates_dir.join("partials");
         Ok(Layout {
+            source_note: read(&partials.join("source-note.html"))?,
             header: read(&partials.join("header.html"))?,
             footer: render_footer(&read(&partials.join("footer.html"))?),
         })
@@ -164,7 +168,11 @@ impl Layout {
     /// trimmed so a partial's own newline is the only one at the seam.
     fn template(&self, templates_dir: &Path, name: &str) -> Result<String, String> {
         let tmpl = read(&templates_dir.join(name))?;
-        Ok(tmpl
+        let Some(body) = tmpl.strip_prefix(DOCTYPE) else {
+            return Err(format!("{name}: must start with {DOCTYPE:?}"));
+        };
+        // The note goes first, so view-source opens on it.
+        Ok(format!("{DOCTYPE}{}{body}", self.source_note)
             .replace("{{header}}", self.header.trim_end())
             .replace("{{footer}}", self.footer.trim_end()))
     }
@@ -861,6 +869,21 @@ target: eclair\nbug: OOM\nstatus: fixed in v0.14.1\nblock: 969369\n---\nBody.\n"
         b.slug = "another-slug".into();
         assert!(post_stamp(&a).starts_with("+--[LEDGER 004]---+"));
         assert_ne!(post_stamp(&a), post_stamp(&b));
+    }
+
+    #[test]
+    fn a_template_without_the_doctype_is_refused() {
+        let dir = std::env::temp_dir().join(format!("blog-gen-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("bare.html"), "<html></html>").unwrap();
+        let layout = Layout {
+            source_note: String::new(),
+            header: String::new(),
+            footer: String::new(),
+        };
+        let result = layout.template(&dir, "bare.html");
+        fs::remove_dir_all(&dir).unwrap();
+        assert!(result.unwrap_err().contains("must start with"));
     }
 
     #[test]
