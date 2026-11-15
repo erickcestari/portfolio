@@ -614,21 +614,34 @@ article p {
     text-wrap: pretty;
 }
 
-/* Section divider in articles */
+/* Section divider in articles: a line of the genesis block's header as
+   `hexdump -C` prints it. Each divider in a post reads on from the last,
+   through all five lines of the 80 bytes. */
 article hr {
     border: none;
-    text-align: center;
+    height: auto;
     margin: 2.5rem 0;
+    text-align: center;
     color: var(--muted);
-    font-size: 1rem;
-    letter-spacing: 0.6em;
-    line-height: 1;
-    height: 1rem;
+    font-family: var(--mono);
+    white-space: pre;
+    overflow: hidden;
+    /* So the line can shrink to fit narrow columns instead of wrapping. */
+    container-type: inline-size;
 }
 
 article hr::before {
-    content: "* * *";
+    display: block;
+    /* 78 columns at about 0.6em each. */
+    font-size: min(var(--fs-mono-sm), 100cqi / 47);
+    line-height: 1.6;
 }
+
+article hr:nth-of-type(5n + 1)::before { content: "00000000  01 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|"; }
+article hr:nth-of-type(5n + 2)::before { content: "00000010  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|"; }
+article hr:nth-of-type(5n + 3)::before { content: "00000020  00 00 00 00 3b a3 ed fd  7a 7b 12 b2 7a c7 2c 3e  |....;...z{..z.,>|"; }
+article hr:nth-of-type(5n + 4)::before { content: "00000030  67 76 8f 61 7f c8 1b c3  88 8a 51 32 3a 9f b8 aa  |gv.a......Q2:...|"; }
+article hr:nth-of-type(5n + 5)::before { content: "00000040  4b 1e 5e 4a 29 ab 5f 49  ff ff 00 1d 1d ac 2b 7c  |K.^J)._I......+||"; }
 
 /* Drop cap on the first paragraph of a post (not the home bio) */
 article > .post-meta + p::first-letter,
