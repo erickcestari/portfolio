@@ -1,9 +1,33 @@
     <footer>
         <div class="identity">
-            <div>pgp: <a href="/pubkey.asc">0x{{pgp_keyid}}</a></div>
-            <div>bitcoin: <code><a href="bitcoin:bc1qpjl6hupdmngmnx6wv4hqj2x053t6zuwxhhe8m5">bc1qpjl6hupdmngmnx6wv4hqj2x053t6zuwxhhe8m5</a></code></div>
+            <!-- data-copy: footer.js adds a [copy] button for that value. -->
+            <div data-copy="{{pgp_fingerprint}}" data-copy-label="Copy the PGP fingerprint">pgp: <a href="/pubkey.asc">0x{{pgp_keyid}}</a></div>
+            <div data-copy="bc1qpjl6hupdmngmnx6wv4hqj2x053t6zuwxhhe8m5" data-copy-label="Copy the bitcoin address">bitcoin: <code><a href="bitcoin:bc1qpjl6hupdmngmnx6wv4hqj2x053t6zuwxhhe8m5">bc1qpjl6hupdmngmnx6wv4hqj2x053t6zuwxhhe8m5</a></code></div>
             <div>email: <a href="mailto:erickcestari03@gmail.com">erickcestari03@gmail.com</a></div>
-            <div>honeypot: <a href="/honeypot">live scanner hits</a></div>
+            <div>honeypot: <a class="hp-last" href="/honeypot">live scanner hits</a></div>
+            <!-- `$ fortune`: footer.js shows one line from this list per load. A line
+                 with data-day is also the one shown on that Bitcoin anniversary
+                 (see static/today.js). -->
+            <figure class="fortune" hidden></figure>
+            <template class="fortunes">
+                <p data-day="genesis">The Times 03/Jan/2009 Chancellor on brink of second bailout for banks.
+                    <cite>the genesis block, 2009</cite></p>
+                <p data-day="whitepaper">A purely peer-to-peer version of electronic cash would allow online payments
+                    to be sent directly from one party to another without going through a financial institution.
+                    <cite>Satoshi Nakamoto, the Bitcoin whitepaper, 2008</cite></p>
+                <p>Running bitcoin <cite>Hal Finney, 2009</cite></p>
+                <p>The root problem with conventional currency is all the trust that's required to make it work.
+                    <cite>Satoshi Nakamoto, 2009</cite></p>
+                <p>Lost coins only make everyone else's coins worth slightly more. Think of it as a donation to
+                    everyone. <cite>Satoshi Nakamoto, 2010</cite></p>
+                <p>Cypherpunks write code. <cite>Eric Hughes, A Cypherpunk's Manifesto, 1993</cite></p>
+                <p>Privacy is necessary for an open society in the electronic age.
+                    <cite>Eric Hughes, A Cypherpunk's Manifesto, 1993</cite></p>
+                <p>Program testing can be used to show the presence of bugs, but never to show their absence!
+                    <cite>Edsger W. Dijkstra, 1970</cite></p>
+                <p>Given enough eyeballs, all bugs are shallow. <cite>Eric S. Raymond, 1999</cite></p>
+                <p>Don't trust. Verify. <cite>a Bitcoin proverb</cite></p>
+            </template>
         </div>
         <pre class="key-art" aria-hidden="true"
             title="The PGP key's fingerprint as randomart">{{pgp_art}}</pre>
@@ -16,3 +40,5 @@
             </a>
         </div>
     </footer>
+    <a class="to-top" href="#top" aria-label="Back to top">^ top</a>
+    <script type="module" src="/footer.js"></script>

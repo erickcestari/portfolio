@@ -1824,6 +1824,41 @@ article pre.stamp {
     pointer-events: none;
 }
 
+/* ---- `$ fortune` in the footer (footer.js) ---- */
+/* Under the honeypot line. Contained, so a long quote wraps to the column's
+   width instead of widening it into the key art. */
+.fortune {
+    margin-top: 1rem;
+    contain: inline-size;
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+    line-height: var(--lh-base);
+    color: var(--muted);
+}
+
+.fortune::before {
+    content: "$ fortune";
+    display: block;
+    margin-bottom: 0.35rem;
+}
+
+.fortune p {
+    max-width: 64ch;
+    color: var(--ink-2);
+}
+
+.fortune cite {
+    display: block;
+    margin-top: 0.2rem;
+    padding-left: 4ch;
+    font-style: normal;
+    color: var(--muted);
+}
+
+.fortune cite::before {
+    content: "-- ";
+}
+
 /* ---- The keyboard shortcuts box, on "?" (keys.js) ---- */
 .keys-help {
     margin: auto;
@@ -1841,6 +1876,20 @@ article pre.stamp {
     font-family: var(--mono);
     font-size: var(--fs-mono-md);
     line-height: 1.3;
+}
+
+/* ---- Footer [copy] buttons (footer.js, via copy.js) ---- */
+.copy-inline {
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.copy-inline:hover {
+    color: var(--ink);
 }
 
 /* ---- "continue at 42%" when a post is reopened (post.js) ---- */
