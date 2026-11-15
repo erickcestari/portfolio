@@ -403,6 +403,22 @@ footer::after {
     to { transform: translate(var(--sway), calc(100vh + 2rem)); }
 }
 
+/* The cat that walks the bottom edge now and then (cat.js), behind the
+   text like the rest of the sky, so it never covers a line being read. */
+.cat {
+    position: fixed;
+    left: 0;
+    bottom: 0.25rem;
+    z-index: -1;
+    margin: 0;
+    pointer-events: none;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.1;
+    white-space: pre;
+    color: var(--muted);
+}
+
 ::selection {
     background: color-mix(in oklab, var(--accent-warm) 30%, transparent);
     color: var(--ink);
