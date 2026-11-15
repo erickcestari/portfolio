@@ -1434,6 +1434,27 @@ button.ledger-tag[aria-pressed="true"] {
     .toc ul { margin-top: 0; }
 }
 
+/* ---- 404: the miss as bitcoin-cli reports it, then the quip ---- */
+.cli {
+    margin: 0 0 1.5rem;
+    font-family: var(--mono);
+    font-size: var(--fs-mono-md);
+    line-height: 1.6;
+    color: var(--ink-2);
+    /* The 64-hex hash breaks anywhere rather than run off narrow screens. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.cli-prompt,
+.cli-comment {
+    color: var(--muted);
+}
+
+.cli + h2 {
+    margin-top: 0;
+}
+
 /* ---- Code blocks: a [copy] button in the corner (post.js) ---- */
 .code {
     position: relative;
@@ -2065,6 +2086,18 @@ article pre.stamp {
 
 article img.is-zoomable {
     cursor: zoom-in;
+}
+
+/* ---- 404: the guess at the page meant (not-found.js) ---- */
+.did-you-mean {
+    margin: -0.75rem 0 1.5rem;
+    font-family: var(--mono);
+    font-size: var(--fs-mono-md);
+    color: var(--muted);
+}
+
+.did-you-mean::before {
+    content: "# ";
 }
 
 @media (max-width: 600px) {

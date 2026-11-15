@@ -24,7 +24,7 @@ const PGP_FINGERPRINT: &str = "3C1BED5D0CF3A270BC690D3AD7D17E26F2FC3F3C";
 const PGP_ALGORITHM: &str = "RSA 3072";
 
 /// Pages that are pure layout: no data to interpolate beyond the shared chrome.
-const STATIC_PAGES: [&str; 3] = ["books.html", "404.html", "honeypot.html"];
+const STATIC_PAGES: [&str; 2] = ["books.html", "honeypot.html"];
 
 struct Post {
     slug: String,
@@ -142,6 +142,10 @@ pub fn generate(root: &Path) -> Result<usize, String> {
     write(
         &static_dir.join("index.html"),
         render_ledger(&home_tmpl, &bare_posts),
+    )?;
+    write(
+        &static_dir.join("404.html"),
+        render_not_found(&layout.template(&templates_dir, "404.html")?, &bare_posts),
     )?;
     write(&out_dir.join("feed.xml"), render_atom(&bare_posts))?;
     write(&static_dir.join("sitemap.xml"), render_sitemap(&bare_posts))?;
@@ -824,6 +828,21 @@ fn render_ledger(tmpl: &str, posts: &[&Post]) -> String {
     tmpl.replace("{{items}}", &rows)
 }
 
+/// The 404 page, given every post as a link for its "did you mean" guess.
+fn render_not_found(tmpl: &str, posts: &[&Post]) -> String {
+    let links: String = posts
+        .iter()
+        .map(|p| {
+            format!(
+                "<a href=\"/blog/{}/\">{}</a>\n",
+                p.slug,
+                escape_html(&p.title)
+            )
+        })
+        .collect();
+    tmpl.replace("{{known_posts}}", &links)
+}
+
 fn render_atom(posts: &[&Post]) -> String {
     let updated = posts
         .first()
@@ -1011,6 +1030,14 @@ target: eclair\nbug: OOM\nstatus: fixed in v0.14.1\n---\nBody.\n\n## Timeline\n\
         let next = nav.find("rel=\"next\" href=\"/blog/newer/\"").unwrap();
         assert!(prev < next);
         assert_eq!(render_post_nav(None, None), "");
+    }
+
+    #[test]
+    fn the_404_lists_every_post_for_its_guess() {
+        let mut p = post(FINDING).unwrap();
+        p.slug = "eclair-oom".into();
+        let html = render_not_found("<template>{{known_posts}}</template>", &[&p]);
+        assert!(html.contains("<a href=\"/blog/eclair-oom/\">Crashing a &lt;node&gt;</a>"));
     }
 
     #[test]
