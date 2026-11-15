@@ -2101,6 +2101,13 @@ article img.is-zoomable {
 }
 
 @media (max-width: 600px) {
+    /* Small text a little larger on phones, where 11px strains. */
+    :root {
+        --fs-mono-sm: 0.8rem;
+        --fs-mono-md: 0.85rem;
+        --fs-tag:     0.76rem;
+    }
+
     .post-nav {
         grid-template-columns: 1fr;
     }
