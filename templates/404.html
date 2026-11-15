@@ -18,9 +18,23 @@
 {{header}}
 
     <main id="main-content">
-        <h2>Block not found. Are you sure this isn't an orphan?</h2>
-
-        <!-- Shown by chip8.js once Tetris is running, so a failed load leaves a plain 404. -->
+        <!-- The miss, as bitcoin-cli reports it. The missing path's SHA-256 stands in
+             for the hash asked for (not-found.js): a raw path would earn error -8
+             (not a 64-hex hash), an unknown hash the -5 below. The command line is
+             hidden from screen readers, which get the error. -->
+        <pre class="cli"><span aria-hidden="true"><span class="cli-prompt">$ </span>bitcoin-cli getblock <span class="cli-hash">0000000000000000000000000000000000000000000000000000000000000000</span>
+</span>error code: -5
+error message:
+Block not found</pre>
+        <p class="did-you-mean" hidden>did you mean <a href="/"></a>?</p>
+        <!-- What not-found.js may suggest: the main pages here, every post from blog-gen. -->
+        <template class="known-pages">
+            <a href="/">home</a>
+            <a href="/blog/">blog</a>
+            <a href="/books">books</a>
+            <a href="/honeypot">honeypot</a>
+            {{known_posts}}
+        </template>
         <div class="chip8" id="chip8" hidden>
             <canvas class="chip8-screen" id="chip8-screen" width="64" height="32" role="img"
                 aria-label="CHIP-8 display running Tetris"></canvas>
@@ -34,6 +48,7 @@
     </main>
 
 {{footer}}
+    <script type="module" src="/not-found.js"></script>
     <script type="module" src="/chip8/chip8.js"></script>
 </body>
 

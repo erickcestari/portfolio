@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
+sha2 = "0.10"
 syntect = { version = "5", default-features = false, features = ["default-syntaxes", "html", "regex-fancy"] }

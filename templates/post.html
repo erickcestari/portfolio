@@ -36,23 +36,20 @@
             {{cover}}
             <h1>{{title}}</h1>
             <p class="post-meta"><time datetime="{{date_iso}}">{{date}}</time>{{block}}<span class="reading-time">{{reading_time}} min read</span></p>
+            {{advisory}}
             {{toc}}
             {{content}}
+            <pre class="stamp" aria-hidden="true"
+                title="This post's randomart: the SHA-256 of its slug">{{stamp}}</pre>
         </article>
+        {{post_nav}}
     </main>
 
 {{footer}}
-    <script>
-        document.querySelectorAll('article h2[id], article h3[id], article h4[id]').forEach(h => {
-            h.addEventListener('click', e => {
-                if (e.target.closest('a')) return;
-                history.replaceState(null, '', '#' + h.id);
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(location.href).catch(() => {});
-                }
-            });
-        });
-    </script>
+    <!-- post.js enables it when the post has contents: a tap opens them. -->
+    <button class="read-progress" type="button" aria-label="Show contents" disabled></button>
+    <div class="toast" role="status"></div>
+    <script type="module" src="/post.js"></script>
 </body>
 
 </html>

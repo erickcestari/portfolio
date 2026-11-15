@@ -8,14 +8,23 @@ use pulldown_cmark::{
     html, CodeBlockKind, CowStr, Event, HeadingLevel, Options, Parser, Tag, TagEnd,
 };
 
+use sha2::{Digest, Sha256};
+
 mod highlight;
+mod randomart;
 mod timeline;
 use highlight::Highlighter;
 
 const SITE_URL: &str = "https://erickcestari.dev";
 
+/// The OpenPGP key served as `static/pubkey.asc`, as `gpg --show-keys` prints
+/// it: the footer shows its key ID and draws its v4 fingerprint as randomart.
+/// Update both if the key is ever replaced.
+const PGP_FINGERPRINT: &str = "3C1BED5D0CF3A270BC690D3AD7D17E26F2FC3F3C";
+const PGP_ALGORITHM: &str = "RSA 3072";
+
 /// Pages that are pure layout: no data to interpolate beyond the shared chrome.
-const STATIC_PAGES: [&str; 3] = ["books.html", "404.html", "honeypot.html"];
+const STATIC_PAGES: [&str; 2] = ["books.html", "honeypot.html"];
 
 struct Post {
     slug: String,
@@ -27,6 +36,12 @@ struct Post {
     target: String,
     bug: String,
     status: String,
+    /// Advisory details, shown when given: affected versions and CVE ids, as
+    /// written in the frontmatter.
+    affected: String,
+    cve: String,
+    /// The day the finding was reported: the first date of the post's Timeline.
+    reported: Option<String>,
     /// Bitcoin block height on the publication date.
     block: Option<u64>,
     /// Publication order, 1 for the oldest post.
@@ -104,10 +119,16 @@ pub fn generate(root: &Path) -> Result<usize, String> {
 
     fs::create_dir_all(&out_dir).map_err(|e| format!("create {}: {e}", out_dir.display()))?;
 
-    for (post, asset_dir) in &posts {
+    // Newest first, so the next index down the list is the older post.
+    for (i, (post, asset_dir)) in posts.iter().enumerate() {
+        let newer = i.checked_sub(1).map(|j| &posts[j].0);
+        let older = posts.get(i + 1).map(|(p, _)| p);
         let dir = out_dir.join(&post.slug);
         fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
-        write(&dir.join("index.html"), render_post(&post_tmpl, post))?;
+        write(
+            &dir.join("index.html"),
+            render_post(&post_tmpl, post, older, newer),
+        )?;
         if let Some(src) = asset_dir {
             copy_assets(src, &dir)?;
         }
@@ -122,6 +143,10 @@ pub fn generate(root: &Path) -> Result<usize, String> {
         &static_dir.join("index.html"),
         render_ledger(&home_tmpl, &bare_posts),
     )?;
+    write(
+        &static_dir.join("404.html"),
+        render_not_found(&layout.template(&templates_dir, "404.html")?, &bare_posts),
+    )?;
     write(&out_dir.join("feed.xml"), render_atom(&bare_posts))?;
     write(&static_dir.join("sitemap.xml"), render_sitemap(&bare_posts))?;
 
@@ -135,9 +160,12 @@ pub fn generate(root: &Path) -> Result<usize, String> {
     Ok(posts.len())
 }
 
+const DOCTYPE: &str = "<!DOCTYPE html>\n";
+
 /// The chrome shared by every page, injected wherever a template says
-/// `{{header}}` / `{{footer}}`.
+/// `{{header}}` / `{{footer}}`, plus the note for readers of the source.
 struct Layout {
+    source_note: String,
     header: String,
     footer: String,
 }
@@ -146,8 +174,9 @@ impl Layout {
     fn load(templates_dir: &Path) -> Result<Self, String> {
         let partials = templates_dir.join("partials");
         Ok(Layout {
+            source_note: read(&partials.join("source-note.html"))?,
             header: read(&partials.join("header.html"))?,
-            footer: read(&partials.join("footer.html"))?,
+            footer: render_footer(&read(&partials.join("footer.html"))?),
         })
     }
 
@@ -155,10 +184,42 @@ impl Layout {
     /// trimmed so a partial's own newline is the only one at the seam.
     fn template(&self, templates_dir: &Path, name: &str) -> Result<String, String> {
         let tmpl = read(&templates_dir.join(name))?;
-        Ok(tmpl
+        let Some(body) = tmpl.strip_prefix(DOCTYPE) else {
+            return Err(format!("{name}: must start with {DOCTYPE:?}"));
+        };
+        // The note goes first, so view-source opens on it.
+        Ok(format!("{DOCTYPE}{}{body}", self.source_note)
             .replace("{{header}}", self.header.trim_end())
             .replace("{{footer}}", self.footer.trim_end()))
     }
+}
+
+/// Fills in the fingerprint, key ID and randomart of the site's PGP key.
+fn render_footer(tmpl: &str) -> String {
+    let fingerprint = hex_bytes(PGP_FINGERPRINT);
+    let art = randomart::draw(&fingerprint, PGP_ALGORITHM, "SHA1");
+    tmpl.replace("{{pgp_fingerprint}}", PGP_FINGERPRINT)
+        .replace(
+            "{{pgp_keyid}}",
+            &PGP_FINGERPRINT[PGP_FINGERPRINT.len() - 16..],
+        )
+        .replace("{{pgp_art}}", &escape_html(&art))
+}
+
+/// A post's randomart, drawn from the SHA-256 of its slug: titles get edited,
+/// the slug is the post's identity.
+fn post_stamp(p: &Post) -> String {
+    let digest = Sha256::digest(p.slug.as_bytes());
+    randomart::draw(&digest, &format!("LEDGER {:03}", p.number), "SHA256")
+}
+
+/// Decodes a hex string known at compile time; anything else is a typo here.
+fn hex_bytes(hex: &str) -> Vec<u8> {
+    assert!(hex.len().is_multiple_of(2), "odd-length hex: {hex}");
+    (0..hex.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).expect("hex digit"))
+        .collect()
 }
 
 fn read(path: &Path) -> Result<String, String> {
@@ -194,6 +255,8 @@ fn parse_source(
     let mut target = String::new();
     let mut bug = String::new();
     let mut status = String::new();
+    let mut affected = String::new();
+    let mut cve = String::new();
     let mut block = None;
 
     for line in meta.lines() {
@@ -214,6 +277,8 @@ fn parse_source(
             "target" => target = val,
             "bug" => bug = val,
             "status" => status = val,
+            "affected" => affected = val,
+            "cve" => cve = val,
             "block" => {
                 let height = val
                     .parse::<u64>()
@@ -232,6 +297,7 @@ fn parse_source(
     }
 
     let (html_out, headings) = render_markdown(body, hl);
+    let reported = timeline::first_date(&html_out).map(str::to_string);
     let toc = render_toc(&headings);
     let reading_time = estimate_reading_minutes(body);
 
@@ -243,6 +309,9 @@ fn parse_source(
         target,
         bug,
         status,
+        affected,
+        cve,
+        reported,
         block,
         number: 0,
         cover,
@@ -585,7 +654,95 @@ fn group_thousands(n: u64) -> String {
     out
 }
 
-fn render_post(tmpl: &str, p: &Post) -> String {
+/// Whether a finding is closed: "fixed" or "open". The ledger and the
+/// advisory box both colour by it, and the ledger filters on it.
+fn status_state(status: &str) -> &'static str {
+    if status.starts_with("fixed") {
+        "fixed"
+    } else {
+        "open"
+    }
+}
+
+/// A finding at a glance, for the reader who only needs to know whether they
+/// are affected: what broke, how, where it stands, and the disclosure dates.
+/// Empty for posts that are not findings.
+fn render_advisory(p: &Post) -> String {
+    if p.target.is_empty() && p.status.is_empty() {
+        return String::new();
+    }
+    let mut rows: Vec<(&str, String)> = Vec::new();
+    if !p.target.is_empty() {
+        rows.push(("target", escape_html(&p.target)));
+    }
+    if !p.bug.is_empty() {
+        rows.push(("issue", escape_html(&p.bug)));
+    }
+    if !p.affected.is_empty() {
+        rows.push(("affected", escape_html(&p.affected)));
+    }
+    if !p.status.is_empty() {
+        rows.push((
+            "status",
+            format!(
+                "<span class=\"is-{}\">{}</span>",
+                status_state(&p.status),
+                escape_html(&p.status)
+            ),
+        ));
+    }
+    if !p.cve.is_empty() {
+        let links: Vec<String> = p
+            .cve
+            .split(',')
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .map(|id| {
+                let id = escape_html(id);
+                format!("<a href=\"https://www.cve.org/CVERecord?id={id}\">{id}</a>")
+            })
+            .collect();
+        rows.push(("cve", links.join(", ")));
+    }
+    if let Some(reported) = &p.reported {
+        rows.push(("reported", escape_html(reported)));
+    }
+    let embargo = p
+        .reported
+        .as_deref()
+        .and_then(|r| Some(timeline::days_from_iso(&p.date)? - timeline::days_from_iso(r)?))
+        .map_or(String::new(), |days| {
+            format!(" <span class=\"advisory-gap\">({days} days later)</span>")
+        });
+    rows.push(("disclosed", format!("{}{embargo}", escape_html(&p.date))));
+
+    let items: String = rows
+        .iter()
+        .map(|(key, value)| format!("<div><dt>{key}</dt><dd>{value}</dd></div>"))
+        .collect();
+    format!("<dl class=\"advisory\">{items}</dl>")
+}
+
+/// Links to the posts on either side, older on the left like a timeline.
+fn render_post_nav(older: Option<&Post>, newer: Option<&Post>) -> String {
+    if older.is_none() && newer.is_none() {
+        return String::new();
+    }
+    let link = |p: &Post, rel: &str, label: &str| {
+        format!(
+            "<a class=\"post-nav-{rel}\" rel=\"{rel}\" href=\"/blog/{slug}/\"><span class=\"post-nav-label\">{label}</span>{title}</a>",
+            slug = p.slug,
+            title = escape_html(&p.title),
+        )
+    };
+    format!(
+        "<nav class=\"post-nav\" aria-label=\"More posts\">{}{}</nav>",
+        older.map_or(String::new(), |p| link(p, "prev", "&lt;- older")),
+        newer.map_or(String::new(), |p| link(p, "next", "newer -&gt;")),
+    )
+}
+
+fn render_post(tmpl: &str, p: &Post, older: Option<&Post>, newer: Option<&Post>) -> String {
     let block = p.block.map_or(String::new(), |h| {
         format!(
             "<span class=\"block-height\"><a href=\"https://mempool.space/block/{h}\">block {}</a></span>",
@@ -618,8 +775,11 @@ fn render_post(tmpl: &str, p: &Post) -> String {
         .replace("{{slug}}", &p.slug)
         .replace("{{url}}", &format!("{}/blog/{}/", SITE_URL, p.slug))
         .replace("{{block}}", &block)
+        .replace("{{advisory}}", &render_advisory(p))
+        .replace("{{post_nav}}", &render_post_nav(older, newer))
         .replace("{{toc}}", &p.toc)
         .replace("{{reading_time}}", &p.reading_time.to_string())
+        .replace("{{stamp}}", &escape_html(&post_stamp(p)))
         .replace("{{content}}", &p.html)
 }
 
@@ -631,33 +791,31 @@ fn render_ledger(tmpl: &str, posts: &[&Post]) -> String {
         let mut tags: Vec<String> = [&p.target, &p.bug]
             .into_iter()
             .filter(|t| !t.is_empty())
-            .map(|t| format!("<span>{}</span>", escape_html(t)))
+            .map(|t| {
+                let t = escape_html(t);
+                format!("<span class=\"ledger-tag\" data-tag=\"{t}\">{t}</span>")
+            })
             .collect();
         if !p.status.is_empty() {
-            let state = if p.status.starts_with("fixed") {
-                "is-fixed"
-            } else {
-                "is-open"
-            };
+            // Filtered by state, so "fixed in v0.14.1" and "fixed in v25.09" group.
+            let state = status_state(&p.status);
             tags.push(format!(
-                "<span class=\"ledger-status {state}\">{}</span>",
+                "<span class=\"ledger-tag ledger-status is-{state}\" data-tag=\"{state}\">{}</span>",
                 escape_html(&p.status)
             ));
         }
         let block = p.block.map_or(String::new(), |h| {
             format!(
-                "\n                        <span class=\"ledger-block\">block {}</span>",
+                "\n                    <span class=\"ledger-block\" data-height=\"{h}\">block {}</span>",
                 group_thousands(h)
             )
         });
         rows.push_str(&format!(
-            "                <li>
-                    <a class=\"ledger-row\" href=\"/blog/{slug}/\">
-                        <span class=\"ledger-no\">{number:03}</span>
-                        <span class=\"ledger-title\">{title}</span>
-                        <span class=\"ledger-tags\">{tags}</span>
-                        <time class=\"ledger-date\" datetime=\"{date}\">{date}</time>{block}
-                    </a>
+            "                <li class=\"ledger-row\">
+                    <span class=\"ledger-no\">{number:03}</span>
+                    <a class=\"ledger-title\" href=\"/blog/{slug}/\">{title}</a>
+                    <span class=\"ledger-tags\">{tags}</span>
+                    <time class=\"ledger-date\" datetime=\"{date}\">{date}</time>{block}
                 </li>\n",
             slug = p.slug,
             number = p.number,
@@ -668,6 +826,21 @@ fn render_ledger(tmpl: &str, posts: &[&Post]) -> String {
     }
     rows.push_str("            </ol>");
     tmpl.replace("{{items}}", &rows)
+}
+
+/// The 404 page, given every post as a link for its "did you mean" guess.
+fn render_not_found(tmpl: &str, posts: &[&Post]) -> String {
+    let links: String = posts
+        .iter()
+        .map(|p| {
+            format!(
+                "<a href=\"/blog/{}/\">{}</a>\n",
+                p.slug,
+                escape_html(&p.title)
+            )
+        })
+        .collect();
+    tmpl.replace("{{known_posts}}", &links)
 }
 
 fn render_atom(posts: &[&Post]) -> String {
@@ -792,10 +965,13 @@ target: eclair\nbug: OOM\nstatus: fixed in v0.14.1\nblock: 969369\n---\nBody.\n"
         p.number = 4;
         let html = render_ledger("{{items}}", &[&p]);
         assert!(html.contains("<span class=\"ledger-no\">004</span>"));
-        assert!(html.contains("<span class=\"ledger-title\">Crashing a &lt;node&gt;</span>"));
-        assert!(html.contains("<span>eclair</span><span>OOM</span>"));
-        assert!(html.contains("ledger-status is-fixed\">fixed in v0.14.1"));
-        assert!(html.contains("block 969,369"));
+        assert!(html.contains(
+            "<a class=\"ledger-title\" href=\"/blog/slug/\">Crashing a &lt;node&gt;</a>"
+        ));
+        assert!(html.contains("data-tag=\"eclair\">eclair</span>"));
+        assert!(html.contains("data-tag=\"OOM\">OOM</span>"));
+        assert!(html.contains("ledger-status is-fixed\" data-tag=\"fixed\">fixed in v0.14.1"));
+        assert!(html.contains("data-height=\"969369\">block 969,369<"));
     }
 
     #[test]
@@ -807,10 +983,100 @@ target: eclair\nbug: OOM\nstatus: fixed in v0.14.1\nblock: 969369\n---\nBody.\n"
         assert!(!html.contains("ledger-block"));
     }
 
+    const DISCLOSED: &str = "---\ntitle: Crashing a node\ndate: 2026-09-30\n\
+target: eclair\nbug: OOM\nstatus: fixed in v0.14.1\n---\nBody.\n\n## Timeline\n\n\
+- **2026-07-04:** Reported privately.\n- **2026-09-30:** Public disclosure.\n";
+
+    #[test]
+    fn the_advisory_dates_the_report_from_the_timeline() {
+        let p = post(DISCLOSED).unwrap();
+        assert_eq!(p.reported.as_deref(), Some("2026-07-04"));
+        let html = render_advisory(&p);
+        assert!(html.contains("<dt>target</dt><dd>eclair</dd>"));
+        assert!(html.contains("<dt>issue</dt><dd>OOM</dd>"));
+        assert!(html.contains("<dd><span class=\"is-fixed\">fixed in v0.14.1</span></dd>"));
+        assert!(html.contains("<dt>reported</dt><dd>2026-07-04</dd>"));
+        assert!(html.contains("2026-09-30 <span class=\"advisory-gap\">(88 days later)</span>"));
+    }
+
+    #[test]
+    fn the_advisory_shows_affected_and_cves_only_when_given() {
+        let plain = render_advisory(&post(DISCLOSED).unwrap());
+        assert!(!plain.contains("affected") && !plain.contains("cve"));
+
+        let detailed = DISCLOSED.replace(
+            "status:",
+            "affected: < v0.14.1\ncve: CVE-2026-0001, CVE-2026-0002\nstatus:",
+        );
+        let html = render_advisory(&post(&detailed).unwrap());
+        assert!(html.contains("<dt>affected</dt><dd>&lt; v0.14.1</dd>"));
+        assert!(html.contains("?id=CVE-2026-0001\">CVE-2026-0001</a>, <a"));
+    }
+
+    #[test]
+    fn an_essay_gets_no_advisory() {
+        let p = post("---\ntitle: Notes\ndate: 2026-01-01\n---\nBody.\n").unwrap();
+        assert_eq!(render_advisory(&p), "");
+    }
+
+    #[test]
+    fn a_post_links_its_neighbours_older_first() {
+        let mut older = post(FINDING).unwrap();
+        older.slug = "older".into();
+        let mut newer = post(FINDING).unwrap();
+        newer.slug = "newer".into();
+        let nav = render_post_nav(Some(&older), Some(&newer));
+        let prev = nav.find("rel=\"prev\" href=\"/blog/older/\"").unwrap();
+        let next = nav.find("rel=\"next\" href=\"/blog/newer/\"").unwrap();
+        assert!(prev < next);
+        assert_eq!(render_post_nav(None, None), "");
+    }
+
+    #[test]
+    fn the_404_lists_every_post_for_its_guess() {
+        let mut p = post(FINDING).unwrap();
+        p.slug = "eclair-oom".into();
+        let html = render_not_found("<template>{{known_posts}}</template>", &[&p]);
+        assert!(html.contains("<a href=\"/blog/eclair-oom/\">Crashing a &lt;node&gt;</a>"));
+    }
+
+    #[test]
+    fn the_footer_shows_the_key_id_and_its_randomart() {
+        let html = render_footer("{{pgp_fingerprint}} 0x{{pgp_keyid}} <pre>{{pgp_art}}</pre>");
+        assert!(html.starts_with("3C1BED5D0CF3A270BC690D3AD7D17E26F2FC3F3C 0xD7D17E26F2FC3F3C "));
+        assert!(html.contains("+---[RSA 3072]----+"));
+        assert!(html.contains("+-----[SHA1]------+"));
+    }
+
+    #[test]
+    fn each_post_gets_its_own_stamp() {
+        let mut a = post(FINDING).unwrap();
+        a.number = 4;
+        let mut b = post(FINDING).unwrap();
+        b.slug = "another-slug".into();
+        assert!(post_stamp(&a).starts_with("+--[LEDGER 004]---+"));
+        assert_ne!(post_stamp(&a), post_stamp(&b));
+    }
+
+    #[test]
+    fn a_template_without_the_doctype_is_refused() {
+        let dir = std::env::temp_dir().join(format!("blog-gen-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("bare.html"), "<html></html>").unwrap();
+        let layout = Layout {
+            source_note: String::new(),
+            header: String::new(),
+            footer: String::new(),
+        };
+        let result = layout.template(&dir, "bare.html");
+        fs::remove_dir_all(&dir).unwrap();
+        assert!(result.unwrap_err().contains("must start with"));
+    }
+
     #[test]
     fn anything_but_fixed_is_marked_open() {
         let open = FINDING.replace("status: fixed in v0.14.1", "status: open");
         let html = render_ledger("{{items}}", &[&post(&open).unwrap()]);
-        assert!(html.contains("ledger-status is-open\">open"));
+        assert!(html.contains("ledger-status is-open\" data-tag=\"open\">open"));
     }
 }

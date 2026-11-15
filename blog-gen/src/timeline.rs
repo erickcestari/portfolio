@@ -106,8 +106,17 @@ fn gap_label(days: i64) -> String {
     }
 }
 
+/// The date of the first event in a timeline `render` drew: for a
+/// disclosure, the day it was reported.
+pub fn first_date(html: &str) -> Option<&str> {
+    const DATE: &str = "<time datetime=\"";
+    let timeline = &html[html.find("<ol class=\"timeline\">")?..];
+    let start = timeline.find(DATE)? + DATE.len();
+    timeline.get(start..start + "YYYY-MM-DD".len())
+}
+
 /// "2025-08-25" -> days since 1970-01-01; `None` unless it is a real date.
-fn days_from_iso(s: &str) -> Option<i64> {
+pub fn days_from_iso(s: &str) -> Option<i64> {
     let b = s.as_bytes();
     if b.len() != 10 || b[4] != b'-' || b[7] != b'-' {
         return None;
@@ -144,6 +153,15 @@ fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_first_date_comes_from_a_drawn_timeline_only() {
+        let drawn = render(&format!("<p>x</p>\n{LIST}"));
+        assert_eq!(first_date(&drawn), Some("2025-08-25"));
+        // An undrawn list (or none at all) has no first date.
+        assert_eq!(first_date(LIST), None);
+        assert_eq!(first_date("<p>no timeline</p>"), None);
+    }
 
     const LIST: &str = "<h2 id=\"timeline\">Timeline</h2>\n<ul>\n\
 <li><strong>2025-08-25:</strong> Reported to <a href=\"x\">Rusty</a>.</li>\n\
