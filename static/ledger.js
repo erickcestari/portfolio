@@ -34,7 +34,9 @@ function mutate(text, flips) {
 
 function flickerOnArrival(row) {
     const title = row.querySelector(".ledger-title");
-    const original = title.textContent;
+    const text = title.firstChild;
+    if (!(text instanceof Text)) return;
+    const original = text.data;
     let timer = 0;
     const flicker = () => {
         if (timer) return;
@@ -44,14 +46,16 @@ function flickerOnArrival(row) {
             if (frame > FRAMES) {
                 clearInterval(timer);
                 timer = 0;
-                title.textContent = original;
+                text.data = original;
                 return;
             }
-            title.textContent = mutate(original, FRAMES - frame + 1);
+            text.data = mutate(original, FRAMES - frame + 1);
         }, FRAME_MS);
     };
     row.addEventListener("mouseenter", flicker);
-    title.addEventListener("focus", flicker);
+    title.addEventListener("focus", () => {
+        if (title.matches(":focus-visible")) flicker();
+    });
 }
 
 /** "~4,100" style: tens under a thousand blocks, hundreds above. */
