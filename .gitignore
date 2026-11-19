@@ -1,6 +1,9 @@
 /target
 .env
 
+# Honeypot day counts, see HONEYPOT_FILE in .env.example.
+/honeypot.tsv*
+
 # Rendered by blog-gen (build.rs) from content/ + templates/ on every build.
 /static/blog/
 /static/index.html

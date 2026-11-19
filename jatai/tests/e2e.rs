@@ -343,8 +343,35 @@ async fn catches_from_every_connection_are_published_live() {
         Some("application/json")
     );
     assert_eq!(log.header("Cache-Control").as_deref(), Some("no-store"));
-    assert!(json.contains("\"total\":2"), "{json}");
+    assert!(json.contains("\".env files\":1"), "{json}");
+    assert!(json.contains("\"/etc/passwd\":1"), "{json}");
     assert!(json.contains("\"from\":\"127.0.0.0/24\""), "{json}");
+}
+
+#[tokio::test]
+async fn day_counts_saved_before_a_restart_are_picked_up_again() {
+    let dir = TempDir::new().unwrap();
+    let file = dir.path().join("catches.tsv");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let today = now - now % 86_400;
+    fs::write(&file, format!("{today}\t.env files\t41\n")).unwrap();
+
+    let server = JataiBuilder::new()
+        .with_static_dir(dir.path().to_str().unwrap())
+        .bind_http("127.0.0.1:0")
+        .save_catches_to(&file)
+        .build()
+        .await
+        .expect("server should bind");
+    let addr = server.tcp_addrs()[0];
+    tokio::spawn(server.run());
+
+    get(addr, "/.env").await;
+    let json = String::from_utf8(get(addr, "/honeypot.json").await.body).unwrap();
+    assert!(json.contains("\".env files\":42"), "{json}");
 }
 
 #[tokio::test]

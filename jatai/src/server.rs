@@ -1,4 +1,4 @@
-use std::{env, io, net::SocketAddr, sync::Arc};
+use std::{env, io, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use bytes::Bytes;
 use h2::server;
@@ -7,7 +7,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::time::{timeout, Duration, Instant};
 use tokio_rustls::TlsAcceptor;
 
-use crate::{cache::FileCache, handler::StaticFileHandler, Request};
+use crate::{cache::FileCache, catches::Catches, handler::StaticFileHandler, Request};
 
 const READ_TIMEOUT: Duration = Duration::from_secs(30);
 // Total time budget to receive the complete request line and headers. Unlike a
@@ -15,6 +15,8 @@ const READ_TIMEOUT: Duration = Duration::from_secs(30);
 // trickles bytes cannot hold the connection open indefinitely.
 const HEADER_TIMEOUT: Duration = Duration::from_secs(10);
 const H1_MAX_HEADER_SIZE: usize = 8192;
+/// The most honeypot day counts a restart can lose.
+const SAVE_CATCHES_EVERY: Duration = Duration::from_secs(60);
 
 const SERVER_AGENT: &str = "jatai";
 
@@ -27,6 +29,7 @@ pub struct Config {
     static_dir: String,
     http_bind: String,
     https: Option<HttpsConfig>,
+    catches_file: Option<String>,
 }
 
 struct HttpsConfig {
@@ -43,6 +46,7 @@ impl Config {
             static_dir: env_var("STATIC_DIR"),
             http_bind: env_var("HTTP_BIND"),
             https: Self::parse_https_config(),
+            catches_file: env::var("HONEYPOT_FILE").ok().filter(|f| !f.is_empty()),
         }
     }
 
@@ -94,6 +98,7 @@ pub struct Jatai {
     quic_endpoint: Option<quinn::Endpoint>,
     h3_port: Option<u16>,
     static_dir: String,
+    catches_file: Option<PathBuf>,
 }
 
 pub struct JataiBuilder {
@@ -101,6 +106,7 @@ pub struct JataiBuilder {
     http_bind: Option<String>,
     https: Option<(String, String, String)>, // (bind, cert_path, key_path)
     enable_h3: bool,
+    catches_file: Option<PathBuf>,
 }
 
 impl JataiBuilder {
@@ -110,6 +116,7 @@ impl JataiBuilder {
             http_bind: None,
             https: None,
             enable_h3: false,
+            catches_file: None,
         }
     }
 
@@ -135,6 +142,13 @@ impl JataiBuilder {
 
     pub fn enable_h3(mut self) -> Self {
         self.enable_h3 = true;
+        self
+    }
+
+    /// Keep the honeypot's day counts in `file` across restarts, instead of
+    /// only in memory.
+    pub fn save_catches_to(mut self, file: impl Into<PathBuf>) -> Self {
+        self.catches_file = Some(file.into());
         self
     }
 
@@ -177,6 +191,7 @@ impl JataiBuilder {
             quic_endpoint,
             h3_port,
             static_dir: self.static_dir,
+            catches_file: self.catches_file,
         })
     }
 }
@@ -217,7 +232,18 @@ impl Jatai {
             return;
         }
 
-        let handler = Arc::new(StaticFileHandler::new(FileCache::load(&self.static_dir)));
+        let catches = match self.catches_file {
+            Some(file) => {
+                let catches = Arc::new(Catches::load(file));
+                tokio::spawn(Self::save_catches(Arc::clone(&catches)));
+                catches
+            }
+            None => Arc::default(),
+        };
+        let handler = Arc::new(StaticFileHandler::new(
+            FileCache::load(&self.static_dir),
+            catches,
+        ));
 
         let alt_svc: Option<Arc<str>> = self
             .h3_port
@@ -254,6 +280,16 @@ impl Jatai {
 
         for handle in handles {
             let _ = handle.await;
+        }
+    }
+
+    async fn save_catches(catches: Arc<Catches>) {
+        let mut tick = tokio::time::interval(SAVE_CATCHES_EVERY);
+        loop {
+            tick.tick().await;
+            let catches = Arc::clone(&catches);
+            // Disk writes block, so keep them off the threads serving requests.
+            let _ = tokio::task::spawn_blocking(move || catches.save()).await;
         }
     }
 
@@ -580,6 +616,10 @@ impl From<Config> for JataiBuilder {
             }
         }
 
+        if let Some(file) = config.catches_file {
+            builder = builder.save_catches_to(file);
+        }
+
         builder
     }
 }
@@ -604,7 +644,7 @@ mod tests {
             fs::write(dir.path().join(rel), contents).unwrap();
         }
         let cache = FileCache::load(dir.path().to_str().unwrap());
-        (dir, Arc::new(StaticFileHandler::new(cache)))
+        (dir, Arc::new(StaticFileHandler::new(cache, Arc::default())))
     }
 
     /// Feed `request` through `serve_h1` over an in-memory pipe and return the

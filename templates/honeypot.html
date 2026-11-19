@@ -29,12 +29,27 @@
             <h1>Honeypot</h1>
             <p>I built a honeypot into this site's web server. When a bot requests something like
                 <code>/.env</code> or <code>/etc/passwd</code>, it gets a fake file with made-up credentials. Below is
-                what it caught since the last restart.</p>
-            <p class="hp-note">I keep only which trap was hit and the /24 (or /48) it came from, in memory.</p>
+                what it caught.</p>
+
 
             <div class="hp" id="hp" hidden>
+                <div class="hp-range" id="hp-range" role="group" aria-label="Range">
+                    <button type="button" data-range="days" aria-pressed="true">30 days</button>
+                    <button type="button" data-range="weeks" aria-pressed="false">1 year</button>
+                </div>
                 <p class="hp-total"><span class="hp-total-value" id="hp-total">0</span>
                     <span class="hp-total-label" id="hp-since">requests caught</span></p>
+
+                <h2 class="section-label" id="hp-per">Per day, UTC</h2>
+                <figure class="hp-chart" id="hp-chart">
+                    <ul class="hp-legend" id="hp-legend"></ul>
+                    <div class="hp-plot">
+                        <div class="hp-grid" id="hp-grid"></div>
+                        <div class="hp-columns" id="hp-columns"></div>
+                    </div>
+                    <div class="hp-dates" id="hp-dates"></div>
+                    <div class="hp-tip" id="hp-tip" hidden></div>
+                </figure>
 
                 <h2 class="section-label">What they wanted</h2>
                 <table class="hp-table hp-traps">
@@ -56,8 +71,33 @@
     <script>
         // Everything from /honeypot.json goes in through textContent: the server
         // only sends fixed labels and prefixes, and the page does not rely on it.
+        const DAY = 86400;
+        // Traps drawn in their own color; the rest stack as "everything else".
+        const NAMED = 3;
+        const date = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+        const dayLabel = start => date.format(new Date(start * 1000));
+
+        // The server sends the last 30 days one by one and up to a year by week
+        // (Monday to Sunday, UTC). A short history is not padded past `min` columns.
+        const RANGES = {
+            days: {
+                max: 30, min: 7, length: DAY, heading: "Per day, UTC",
+                whole: "in the last 30 days", now: "today",
+                start: t => t, name: dayLabel,
+            },
+            weeks: {
+                max: 53, min: 8, length: 7 * DAY, heading: "Per week, UTC",
+                whole: "in the last year", now: "this week",
+                // Day 0, 1970-01-01, was a Thursday.
+                start: t => t - ((t / DAY + 3) % 7) * DAY, name: start => `week of ${dayLabel(start)}`,
+            },
+        };
+        let range = RANGES.days;
+        let latest = null;
+
         const box = document.getElementById("hp");
         const statusLine = document.getElementById("hp-status");
+        const tip = document.getElementById("hp-tip");
         const number = new Intl.NumberFormat("en-US");
 
         function ago(seconds) {
@@ -66,6 +106,13 @@
             if (s < 3600) return `${Math.floor(s / 60)}m ago`;
             if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
             return `${Math.floor(s / 86400)}d ago`;
+        }
+
+        function el(tag, className, text) {
+            const node = document.createElement(tag);
+            if (className) node.className = className;
+            if (text !== undefined) node.textContent = text;
+            return node;
         }
 
         function row(cells) {
@@ -78,32 +125,158 @@
             return tr;
         }
 
-        function render(data) {
-            const since = new Date(data.since * 1000).toISOString().slice(0, 16).replace("T", " ");
-            document.getElementById("hp-total").textContent = number.format(data.total);
-            document.getElementById("hp-since").textContent =
-                `${data.total === 1 ? "request" : "requests"} caught since ${since} UTC`;
+        // Round ticks: steps of 1, 2 or 5 times a power of ten, never below 1.
+        function scale(max) {
+            const rough = max / 4;
+            const power = 10 ** Math.floor(Math.log10(rough));
+            const step = Math.max(1, [1, 2, 5, 10].map(m => m * power).find(s => s >= rough));
+            return { step, top: Math.ceil(max / step) * step };
+        }
 
-            const max = Math.max(1, ...data.traps.map(t => t.count));
-            document.getElementById("hp-traps").replaceChildren(...data.traps.map(t => {
-                const bar = document.createElement("span");
-                bar.className = "hp-bar";
-                bar.style.width = `${(100 * t.count) / max}%`;
-                const tr = row([t.label, bar, number.format(t.count)]);
-                tr.title = `${number.format(t.count)} requests, ${Math.round((100 * t.count) / data.total)}% of all`;
+        // Every day or week from the oldest held (within min..max) to the current one.
+        function periods(held) {
+            const today = Math.floor(Date.now() / 1000 / DAY) * DAY;
+            const last = range.start(today);
+            const oldest = held.length ? held[0].start : last;
+            const first = Math.max(last - (range.max - 1) * range.length,
+                Math.min(oldest, last - (range.min - 1) * range.length));
+            const byStart = new Map(held.map(p => [p.start, p.traps]));
+            const out = [];
+            for (let start = first; start <= last; start += range.length) {
+                const traps = byStart.get(start) || {};
+                const total = Object.values(traps).reduce((sum, n) => sum + n, 0);
+                out.push({ start, traps, total });
+            }
+            return out;
+        }
+
+        function showTip(column, period, series) {
+            const lines = series.map(s => {
+                const line = el("div", "hp-tip-row");
+                line.append(el("span", `hp-key ${s.className}`), el("strong", "", number.format(s.count(period))),
+                    ` ${s.label}`);
+                return line;
+            });
+            tip.replaceChildren(
+                el("div", "hp-tip-day", range.name(period.start)),
+                el("div", "hp-tip-total", `${number.format(period.total)} ${period.total === 1 ? "request" : "requests"}`),
+                ...(period.total ? lines : []));
+            tip.hidden = false;
+
+            // Beside the column, never over it: right of it unless that overflows.
+            const chart = column.closest(".hp-chart").getBoundingClientRect();
+            const at = column.getBoundingClientRect();
+            const right = at.right - chart.left + 8;
+            const left = right + tip.offsetWidth <= chart.width ? right : at.left - chart.left - 8 - tip.offsetWidth;
+            tip.style.left = `${Math.max(0, left)}px`;
+            tip.style.top = `${at.top - chart.top}px`;
+        }
+
+        function renderChart(periods, ranked) {
+            const named = ranked.slice(0, NAMED).map(([label]) => label);
+            const series = named.map((label, i) => ({
+                label, className: `hp-s${i + 1}`, count: p => p.traps[label] || 0,
+            }));
+            if (ranked.length > NAMED) {
+                series.push({
+                    label: "everything else", className: "hp-other",
+                    count: p => p.total - named.reduce((sum, l) => sum + (p.traps[l] || 0), 0),
+                });
+            }
+
+            document.getElementById("hp-per").textContent = range.heading;
+            document.getElementById("hp-legend").replaceChildren(...series.map(s => {
+                const item = el("li");
+                item.append(el("span", `hp-key ${s.className}`), s.label);
+                return item;
+            }));
+
+            const { step, top } = scale(Math.max(1, ...periods.map(p => p.total)));
+            const ticks = [];
+            for (let value = 0; value <= top; value += step) {
+                const line = el("div", "hp-gridline");
+                line.style.bottom = `${(100 * value) / top}%`;
+                line.append(el("span", "", number.format(value)));
+                ticks.push(line);
+            }
+            document.getElementById("hp-grid").replaceChildren(...ticks);
+
+            const columns = document.getElementById("hp-columns");
+            columns.classList.toggle("is-dense", periods.length > 31);
+            columns.replaceChildren(...periods.map(period => {
+                const column = el("div", "hp-column");
+                column.tabIndex = 0;
+                column.setAttribute("aria-label", [`${range.name(period.start)}: ${number.format(period.total)} requests`,
+                    ...series.map(s => `${s.label} ${number.format(s.count(period))}`)].join(", "));
+                for (const s of series) {
+                    const count = s.count(period);
+                    if (!count) continue;
+                    const segment = el("span", `hp-seg ${s.className}`);
+                    segment.style.height = `${(100 * count) / top}%`;
+                    column.append(segment);
+                }
+                const show = () => showTip(column, period, series);
+                column.addEventListener("pointerenter", show);
+                column.addEventListener("focus", show);
+                column.addEventListener("pointerleave", () => { tip.hidden = true; });
+                column.addEventListener("blur", () => { tip.hidden = true; });
+                return column;
+            }));
+
+            const middle = periods[Math.floor((periods.length - 1) / 2)];
+            document.getElementById("hp-dates").replaceChildren(
+                el("span", "", dayLabel(periods[0].start)), el("span", "", dayLabel(middle.start)),
+                el("span", "", range.now));
+        }
+
+        function render() {
+            const shown = periods(range === RANGES.days ? latest.days : latest.weeks);
+            const totals = new Map();
+            for (const period of shown) {
+                for (const [label, count] of Object.entries(period.traps)) {
+                    totals.set(label, (totals.get(label) || 0) + count);
+                }
+            }
+            const ranked = [...totals].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+            const total = shown.reduce((sum, p) => sum + p.total, 0);
+
+            const whole = shown.length === range.max;
+            document.getElementById("hp-total").textContent = number.format(total);
+            document.getElementById("hp-since").textContent = `${total === 1 ? "request" : "requests"} caught ` +
+                (whole ? range.whole : `since ${dayLabel(shown[0].start)}`);
+
+            tip.hidden = true;
+            renderChart(shown, ranked);
+
+            const max = Math.max(1, ...ranked.map(([, count]) => count));
+            document.getElementById("hp-traps").replaceChildren(...ranked.map(([label, count]) => {
+                const bar = el("span", "hp-bar");
+                bar.style.width = `${(100 * count) / max}%`;
+                const tr = row([label, bar, number.format(count)]);
+                tr.title = `${number.format(count)} requests, ${Math.round((100 * count) / total)}% of all`;
                 return tr;
             }));
             document.getElementById("hp-recent").replaceChildren(
-                ...data.recent.map(c => row([ago(c.at), c.from, c.label])));
+                ...latest.recent.map(c => row([ago(c.at), c.from, c.label])));
 
             box.hidden = false;
-            statusLine.textContent = data.total === 0 ? "Nothing yet." : "";
+            statusLine.textContent = total === 0 ? "Nothing caught in this range." : "";
         }
+
+        document.getElementById("hp-range").addEventListener("click", event => {
+            const button = event.target.closest("button[data-range]");
+            if (!button || !latest) return;
+            range = RANGES[button.dataset.range];
+            for (const other of event.currentTarget.querySelectorAll("button")) {
+                other.setAttribute("aria-pressed", String(other === button));
+            }
+            render();
+        });
 
         function load() {
             fetch("/honeypot.json", { cache: "no-store" })
                 .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
-                .then(render)
+                .then(data => { latest = data; render(); })
                 .catch(() => { statusLine.textContent = "Couldn't load the log."; });
         }
 

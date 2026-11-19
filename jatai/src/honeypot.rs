@@ -78,6 +78,11 @@ pub fn bait_for(path: &str) -> Option<Bait> {
         .map(|trap| trap.bait)
 }
 
+/// Every trap's label, for reading saved counts back.
+pub fn labels() -> impl Iterator<Item = &'static str> {
+    TRAPS.iter().map(|trap| trap.bait.label)
+}
+
 fn normalise(path: &str) -> String {
     crate::request::fully_decode(path)
         .replace('\\', "/")
@@ -1215,8 +1220,9 @@ mod tests {
 
     #[test]
     fn labels_are_distinct_and_safe_to_publish() {
-        // Labels go verbatim into /honeypot.json, which relies on them needing
-        // no escaping, and two traps sharing one would merge their counts.
+        // Labels go verbatim into /honeypot.json and the saved catches file,
+        // which rely on them needing no escaping, and two traps sharing one
+        // would merge their counts.
         let mut seen = std::collections::HashSet::new();
         for trap in TRAPS {
             let label = trap.bait.label;

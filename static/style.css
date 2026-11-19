@@ -1624,7 +1624,6 @@ button.ledger-tag[aria-pressed="true"] {
 }
 
 /* ---- Honeypot page: live catches from /honeypot.json ---- */
-.hp-note,
 .hp-status {
     color: var(--muted);
     font-style: italic;
@@ -1635,12 +1634,95 @@ button.ledger-tag[aria-pressed="true"] {
     display: none;
 }
 
+/* What is kept, up front: the accent rule marks it as the page's promise. */
+.hp-privacy {
+    margin: 2rem 0 0;
+    padding: 1rem 1.25rem;
+    border: var(--border) solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-md);
+    background: var(--bg-2);
+}
+
+article .hp-privacy-title {
+    margin: 0 0 0.8rem;
+    font-size: var(--fs-label);
+    text-transform: uppercase;
+    letter-spacing: var(--label-tracking);
+    color: var(--ink);
+}
+
+.hp-privacy dl {
+    display: grid;
+    gap: 0.7rem;
+}
+
+.hp-privacy dl div {
+    display: grid;
+    grid-template-columns: 7.5rem 1fr;
+    gap: 1rem;
+}
+
+.hp-privacy dt {
+    padding-top: 0.15em;
+    font-family: var(--mono);
+    font-size: var(--fs-mono-md);
+    color: var(--ink);
+}
+
+.hp-privacy dd {
+    margin: 0;
+    font-size: var(--fs-meta);
+    line-height: var(--lh-snug);
+    color: var(--ink-2);
+}
+
+/* "[30 days] 1 year": brackets mark the range in use, kept in place on the
+   other so switching does not shift the row. */
+.hp-range {
+    display: flex;
+    gap: 1.5ch;
+    margin: 2.75rem 0 0;
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+}
+
+.hp-range button {
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.hp-range button::before { content: "["; }
+.hp-range button::after  { content: "]"; }
+
+.hp-range button::before,
+.hp-range button::after {
+    color: transparent;
+}
+
+.hp-range button:hover {
+    color: var(--accent);
+}
+
+.hp-range button[aria-pressed="true"] {
+    color: var(--ink);
+}
+
+.hp-range button[aria-pressed="true"]::before,
+.hp-range button[aria-pressed="true"]::after {
+    color: var(--muted);
+}
+
 .hp-total {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     gap: 0.25rem 0.9rem;
-    margin: 2.75rem 0 0;
+    margin: 1rem 0 0;
 }
 
 .hp-total-value {
@@ -1655,6 +1737,161 @@ button.ledger-tag[aria-pressed="true"] {
     color: var(--muted);
     font-style: italic;
     font-size: var(--fs-meta);
+}
+
+/* Per-day stacked columns. Series colors are the validated categorical slots
+   1 to 3 (light and dark steps); the folded tail stays a quiet neutral. */
+.hp-chart {
+    --hp-axis: 3.25rem;
+    position: relative;
+    margin: 0 0 1rem;
+    font-family: var(--mono);
+    font-size: var(--fs-mono-sm);
+}
+
+.hp-s1    { background: light-dark(#2a78d6, #3987e5); }
+.hp-s2    { background: light-dark(#eb6834, #d95926); }
+.hp-s3    { background: light-dark(#1baf7a, #199e70); }
+.hp-other { background: light-dark(#cbc2b2, #4a453e); }
+
+article .hp-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.25rem;
+    margin: 0 0 1.25rem;
+    list-style: none;
+    color: var(--ink-2);
+}
+
+article .hp-legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.6ch;
+    margin: 0;
+}
+
+.hp-key {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-sm);
+}
+
+.hp-plot {
+    position: relative;
+    height: 11rem;
+    margin-left: var(--hp-axis);
+}
+
+.hp-gridline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: var(--border) solid var(--rule-soft);
+}
+
+.hp-gridline span {
+    position: absolute;
+    right: calc(100% + 0.6rem);
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.hp-columns {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    gap: 2px;
+}
+
+/* The whole day or week is the hit target; the bar inside keeps air on both
+   sides. */
+.hp-column {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    border-radius: var(--radius-sm);
+}
+
+.hp-column:hover,
+.hp-column:focus-visible {
+    background: var(--rule-soft);
+    outline: none;
+}
+
+/* Stacked bottom-up; each segment's transparent bottom border is the 2px gap. */
+.hp-seg {
+    flex: none;
+    width: 62%;
+    max-width: 24px;
+    box-sizing: border-box;
+    background-clip: padding-box;
+}
+
+.hp-seg + .hp-seg {
+    border-bottom: 2px solid transparent;
+}
+
+/* A year of weeks: the 2px between columns is all the air there is room for. */
+.hp-columns.is-dense .hp-seg {
+    width: 100%;
+}
+
+.hp-seg:last-child {
+    border-radius: 4px 4px 0 0;
+}
+
+.hp-dates {
+    display: flex;
+    justify-content: space-between;
+    margin: 0.45rem 0 0 var(--hp-axis);
+    color: var(--muted);
+}
+
+.hp-tip {
+    position: absolute;
+    top: 0;
+    z-index: 2;
+    padding: 0.5rem 0.7rem;
+    border: var(--border) solid var(--rule);
+    border-radius: var(--radius-md);
+    background: var(--bg);
+    box-shadow: 0 2px 10px rgb(0 0 0 / 0.08);
+    color: var(--ink-2);
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.hp-tip-day {
+    color: var(--muted);
+}
+
+.hp-tip-total {
+    margin-bottom: 0.3rem;
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.hp-tip-row {
+    display: flex;
+    align-items: center;
+    gap: 0.8ch;
+}
+
+.hp-tip-row strong {
+    color: var(--ink);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* A short stroke keys each row: lighter than a swatch at tooltip density. */
+.hp-tip .hp-key {
+    height: 2px;
+    border-radius: 1px;
 }
 
 /* Undo the scrolling block that article tables get, so columns can size. */
@@ -2176,6 +2413,15 @@ article img.is-zoomable {
 
     .hp-total-value {
         font-size: 2.6rem;
+    }
+
+    .hp-privacy dl div {
+        grid-template-columns: 1fr;
+        gap: 0.15rem;
+    }
+
+    .hp-chart {
+        --hp-axis: 2.75rem;
     }
 
     .chip8 {

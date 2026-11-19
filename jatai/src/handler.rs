@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{cache::FileCache, catches::Catches, Request, Response};
 
 /// Live honeypot data for the `/honeypot` page. Not a file, so it is answered
@@ -7,7 +9,7 @@ pub const CATCHES_PATH: &str = "/honeypot.json";
 /// Shared by every connection, so the honeypot log sees all of them.
 pub struct StaticFileHandler {
     cache: FileCache,
-    catches: Catches,
+    catches: Arc<Catches>,
 }
 
 /// One line per request: who asked, what they got, what they asked for.
@@ -25,11 +27,8 @@ fn log(request: &Request, outcome: &str) {
 }
 
 impl StaticFileHandler {
-    pub fn new(cache: FileCache) -> Self {
-        Self {
-            cache,
-            catches: Catches::new(),
-        }
+    pub fn new(cache: FileCache, catches: Arc<Catches>) -> Self {
+        Self { cache, catches }
     }
 
     pub fn handle(&self, request: &Request) -> Response {
@@ -107,7 +106,7 @@ mod tests {
             fs::write(&path, contents).unwrap();
         }
         let cache = FileCache::load(dir.path().to_str().unwrap());
-        (dir, StaticFileHandler::new(cache))
+        (dir, StaticFileHandler::new(cache, Arc::default()))
     }
 
     fn request(path: &str, accepts_gzip: bool) -> Request {
@@ -232,10 +231,9 @@ mod tests {
         assert_eq!(res.content_type, "application/json");
         assert_eq!(res.cache_control, Some("no-store"));
         assert!(
-            json.contains("\"total\":1"),
+            json.contains("\".env files\":1}"),
             "only the attack counts: {json}"
         );
-        assert!(json.contains("\"label\":\".env files\""));
         assert!(json.contains("\"from\":\"203.0.113.0/24\""));
     }
 
